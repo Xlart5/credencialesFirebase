@@ -52,18 +52,14 @@ class EmployeeDataSource extends DataTableSource {
       },
 
       cells: [
-        // 1. FOTO OPTIMIZADA
         // 1. FOTO (Solo Inicial, CERO consumo de internet)
         DataCell(
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 5),
             child: CircleAvatar(
               radius: 18,
-              backgroundColor: AppColors.primaryDark.withOpacity(
-                0.1,
-              ), // Un fondo suave con tu color principal
+              backgroundColor: AppColors.primaryDark.withOpacity(0.1),
               child: Text(
-                // Sacamos la primera letra del nombre y la ponemos en mayúscula
                 emp.nombreCompleto.isNotEmpty
                     ? emp.nombreCompleto.substring(0, 1).toUpperCase()
                     : '?',
@@ -153,36 +149,31 @@ class EmployeeDataSource extends DataTableSource {
             mainAxisSize: MainAxisSize
                 .min, // Importante para que no ocupen espacio infinito
             children: [
-              // Ver
+              // 🔥 VER: Abre el diálogo con la tarjeta de información detallada
               _ActionButton(
                 icon: Icons.visibility_outlined,
                 color: Colors.grey,
                 onTap: () {
-                  /* Lógica ver */
+                  showViewEmployeeDialog(context, emp);
                 },
               ),
 
               const SizedBox(width: 5),
 
-              // Imprimir (RESTAURADO)
-              // Imprimir (RESTAURADO)
+              // IMPRIMIR CREDENCIAL (Mantiene tu lógica)
               _ActionButton(
                 icon: Icons.print_outlined,
                 color: AppColors.primaryDark,
                 onTap: () async {
-                  // 1. Abrimos la vista previa de impresión nativa del navegador
                   await Printing.layoutPdf(
                     onLayout: (format) async {
-                      // Le pasamos al servicio una lista con un solo empleado: [emp]
                       return await PdfGeneratorService.generateCredentialsPdf([
                         emp,
                       ]);
                     },
-                    name:
-                        'Credencial_${emp.ci}.pdf', // Nombre del archivo si deciden guardarlo
+                    name: 'Credencial_${emp.ci}.pdf',
                   );
 
-                  // 2. Al cerrar la vista de impresión, preguntamos si salió bien para actualizar la BD
                   if (context.mounted) {
                     _preguntarSiImprimioBien(context, emp);
                   }
@@ -191,33 +182,18 @@ class EmployeeDataSource extends DataTableSource {
 
               const SizedBox(width: 5),
 
-              // Editar
+              // 🔥 EDITAR: Abre el BottomSheet con el formulario para editar
               _ActionButton(
                 icon: Icons.edit_outlined,
                 color: Colors.blue,
                 onTap: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled:
-                        true, // Permite que el panel tome su tamaño natural
-                    backgroundColor: Colors
-                        .transparent, // Necesario para que se vean los bordes redondeados
-                    builder: (context) {
-                      return Center(
-                        // Centramos horizontalmente para monitores grandes
-                        child: EditEmployeeSheet(
-                          employee: emp,
-                        ), // 'emp' es la variable de tu empleado en esa fila
-                      );
-                    },
-                  );
-                  // Ejemplo: context.push('/registro', extra: emp);
+                  showEditEmployeeSheet(context, emp);
                 },
               ),
 
               const SizedBox(width: 5),
 
-              // Borrar
+              // BORRAR (Mantiene tu lógica)
               _ActionButton(
                 icon: Icons.delete_outline,
                 color: Colors.red,
@@ -252,30 +228,6 @@ class EmployeeDataSource extends DataTableSource {
     );
   }
 
-  void _confirmDelete(Employee emp) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Confirmar Eliminación"),
-        content: Text("¿Estás seguro de eliminar a ${emp.nombreCompleto}?"),
-        actions: [
-          TextButton(
-            child: const Text("Cancelar"),
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text("Eliminar"),
-            onPressed: () {},
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   bool get isRowCountApproximate => false;
   @override
@@ -283,6 +235,10 @@ class EmployeeDataSource extends DataTableSource {
   @override
   int get selectedRowCount => 0;
 }
+
+// ==========================================
+// DIÁLOGOS (Eliminar e Imprimir)
+// ==========================================
 
 void _mostrarDialogoEliminar(BuildContext context, Employee emp) {
   showDialog(

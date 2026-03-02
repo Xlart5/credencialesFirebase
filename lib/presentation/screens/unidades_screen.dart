@@ -1,8 +1,10 @@
-import 'package:carnetizacion/config/provider/unidades_provider.dart';
-import 'package:carnetizacion/presentation/widgets/unidad_details_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../config/models/unidad_model.dart';
+import '../../config/provider/unidades_provider.dart';
+import '../widgets/add_unidad_sheet.dart';
+import '../widgets/unidad_details_dialog.dart';
 
 class UnidadesScreen extends StatefulWidget {
   const UnidadesScreen({super.key});
@@ -18,6 +20,16 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<UnidadesProvider>().fetchDatosUnidades();
     });
+  }
+
+  // Función reutilizable para abrir el panel de crear unidad
+  void _abrirPanelNuevaUnidad(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Permite que flote y no lo tape el teclado
+      backgroundColor: Colors.transparent,
+      builder: (context) => const AddUnidadSheet(),
+    );
   }
 
   @override
@@ -55,6 +67,8 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
                           ),
                         ],
                       ),
+
+                      // 🔥 BOTÓN SUPERIOR CONECTADO
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFFFD54F),
@@ -73,9 +87,9 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
                           "Registrar Nueva Sección",
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        onPressed: () {
-                          // TODO: Lógica para nueva sección
-                        },
+                        onPressed: () => _abrirPanelNuevaUnidad(
+                          context,
+                        ), // <--- CONECTADO AQUÍ
                       ),
                     ],
                   ),
@@ -90,7 +104,7 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
                     runSpacing: 20,
                     children: [
                       // Tarjeta para "Registrar Nueva"
-                      _buildAddCard(),
+                      _buildAddCard(context),
 
                       // Tarjetas de Unidades de la BD
                       ...provider.unidades
@@ -108,26 +122,33 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
   }
 
   // --- WIDGET: TARJETA DE AGREGAR ---
-  Widget _buildAddCard() {
-    return Container(
-      width: 300,
-      height: 180,
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1.5),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.add, color: Colors.blue, size: 30),
-            SizedBox(height: 10),
-            Text(
-              "Registrar Nueva Sección",
-              style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
-            ),
-          ],
+  Widget _buildAddCard(BuildContext context) {
+    return InkWell(
+      onTap: () => _abrirPanelNuevaUnidad(context), // 🔥 TARJETA CONECTADA AQUÍ
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 300,
+        height: 180,
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1.5),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.add, color: Colors.blue, size: 30),
+              SizedBox(height: 10),
+              Text(
+                "Registrar Nueva Sección",
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -139,6 +160,9 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
     UnidadModel unidad,
     UnidadesProvider provider,
   ) {
+    // Calculamos cuántos cargos tiene en tiempo real
+    final int cantidadCargos = provider.getCargosPorUnidad(unidad.id).length;
+
     return Container(
       width: 300,
       height: 180,
@@ -204,7 +228,7 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
               const Icon(Icons.people, size: 14, color: Colors.grey),
               const SizedBox(width: 5),
               Text(
-                "${unidad.totalCargosProceso} Elementos asignados",
+                "$cantidadCargos Elementos asignados",
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ],
@@ -212,9 +236,12 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
           const SizedBox(height: 15),
           Row(
             children: [
+              // 🔥 BOTÓN EDITAR CONECTADO
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    _mostrarDialogoEditarUnidad(context, unidad, provider);
+                  },
                   child: const Text(
                     "Editar",
                     style: TextStyle(color: Colors.grey, fontSize: 12),
@@ -222,6 +249,7 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
                 ),
               ),
               const SizedBox(width: 10),
+              // 🔥 BOTÓN VER DETALLES CONECTADO
               Expanded(
                 child: OutlinedButton(
                   onPressed: () {
@@ -237,6 +265,115 @@ class _UnidadesScreenState extends State<UnidadesScreen> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // FUNCIÓN PARA EDITAR UNIDAD (Conectado a Spring Boot)
+  // ==========================================================
+  void _mostrarDialogoEditarUnidad(
+    BuildContext context,
+    UnidadModel unidad,
+    UnidadesProvider provider,
+  ) {
+    final TextEditingController nombreCtrl = TextEditingController(
+      text: unidad.nombre,
+    );
+    final TextEditingController abrevCtrl = TextEditingController(
+      text: unidad.abreviatura,
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          "Editar Unidad",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Nombre de la Unidad:",
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: nombreCtrl,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              const Text(
+                "Abreviatura (Sigla):",
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: abrevCtrl,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+            onPressed: () async {
+              final nuevoNombre = nombreCtrl.text.trim();
+              final nuevaAbrev = abrevCtrl.text.trim();
+
+              if (nuevoNombre.isEmpty || nuevaAbrev.isEmpty) return;
+
+              Navigator.pop(ctx); // Cerramos el cuadro de diálogo
+
+              // Llamamos a tu Provider para guardar en Spring Boot
+              bool success = await provider.updateUnidad(
+                unidad.id,
+                nuevoNombre,
+                nuevaAbrev,
+              );
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? "Unidad actualizada con éxito"
+                          : "Error al actualizar",
+                    ),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              "Guardar Cambios",
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),

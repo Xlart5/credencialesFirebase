@@ -7,8 +7,9 @@ import '../models/employee_model.dart';
 import 'package:flutter/foundation.dart'; // Obligatorio para usar compute
 
 class EmployeeProvider extends ChangeNotifier {
-  // URL BASE (Actualiza tu ngrok si reinicias el servidor)
-  final String _baseUrl = Environment.apiUrl;
+  // URL BASE (Debe apuntar a tu nueva API)
+  final String _baseUrl = Environment
+      .apiUrl; // Asegúrate de que Environment.apiUrl sea 'https://api.j0o88kckww4cos8cgog80wsw.158.220.117.118.sslip.io'
 
   List<Employee> _allEmployees = [];
   List<Employee> _filteredEmployees = [];
@@ -19,26 +20,15 @@ class EmployeeProvider extends ChangeNotifier {
   String? _selectedUnidadFilter;
   String? _selectedEstadoFilter;
 
-final Set<Employee> _selectedForPrint = {};
-  
+  // --- SELECCIÓN PARA FLUJO ---
+  final Set<Employee> _selectedForPrint = {};
   Set<Employee> get selectedForPrint => _selectedForPrint;
 
-  void toggleSelection(Employee emp) {
-    if (_selectedForPrint.contains(emp)) {
-      _selectedForPrint.remove(emp);
-    } else {
-      _selectedForPrint.add(emp);
-    }
-    notifyListeners();
-  }
-
-  void clearSelection() {
-    _selectedForPrint.clear();
-    notifyListeners();
-  }
-  // Sets para guardar los valores únicos disponibles que llegan de la BD
+  // Sets para guardar los valores únicos
   final Set<String> _unidadesDisponibles = {};
   final Set<String> _estadosDisponibles = {};
+  final Set<String> _cargosDisponibles =
+      {}; // 🔥 AGREGADO PARA EL DROPDOWN DE EDICIÓN
 
   // =====================================
   // GETTERS GENERALES
@@ -49,107 +39,82 @@ final Set<Employee> _selectedForPrint = {};
   bool get isLoading => _isLoading;
   Set<String> get unidadesDisponibles => _unidadesDisponibles;
   Set<String> get estadosDisponibles => _estadosDisponibles;
+  Set<String> get cargosDisponibles => _cargosDisponibles; // 🔥 NUEVO GETTER
   String? get selectedUnidadFilter => _selectedUnidadFilter;
   String? get selectedEstadoFilter => _selectedEstadoFilter;
 
   // =====================================
-  // GETTERS DE KPIs (Para las tarjetas)
+  // GETTERS DE KPIs
   // =====================================
   int get totalEmployees => _allEmployees.length;
-  // Consideramos "Activos" a los que pintamos de verde
   int get totalActivos =>
       _allEmployees.where((e) => e.colorEstado == Colors.green).length;
-  // Consideramos "Pendientes" a los nuevos registros
   int get totalPendientes => _allEmployees
       .where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO")
       .length;
-  // Total general de empleados (por si tu tarjeta lo usa)
-
-  // Total de credenciales ya impresas
   int get printedCredentials => _allEmployees
       .where((e) => e.estadoActual.toUpperCase() == "CREDENCIAL IMPRESO")
       .length;
-
-  // Total de solicitudes pendientes (Personal recién registrado)
   int get pendingRequests => _allEmployees
       .where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO")
       .length;
-  // =====================================
-  // GETTERS PARA IMPRESIÓN (print_screen)
-  // =====================================
   List<Employee> get pendingPrintingEmployees => _allEmployees
       .where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO")
       .toList();
 
   // =====================================
-  // CARGAR EMPLEADOS (POST /api/personal)
-  // =====================================
-  // =====================================
-  // CARGAR EMPLEADOS (CORREGIDO: GET a /detalles)
-  // =====================================
-  // =====================================
   // CARGAR EMPLEADOS (CON CACHÉ INSTANTÁNEO)
   // =====================================
   Future<void> fetchEmployees() async {
-    // 1. Buscamos en el disco duro del navegador (Toma 0.05 segundos)
     final prefs = await SharedPreferences.getInstance();
     final String? cachedJson = prefs.getString('personal_cache');
 
     if (cachedJson != null && cachedJson.isNotEmpty) {
-      // ¡Tenemos datos guardados! Los mostramos AL INSTANTE.
       _allEmployees = await compute(parseEmployeesInBackground, cachedJson);
       _actualizarListasSecundarias();
       _isLoading = false;
-      notifyListeners(); // La pantalla se dibuja con los KPIs y la tabla vieja
+      notifyListeners();
     } else {
-      // Solo mostramos la ruedita si es la primera vez en la vida que abre la app
       _isLoading = true;
       notifyListeners();
     }
 
-    // 2. AHORA VAMOS A INTERNET EN SILENCIO (Modo Fantasma)
     try {
       final url = Uri.parse('$_baseUrl/api/personal/detalles');
-      final response = await http.get(url);
+      final response = await http.get(url, headers: Environment.authHeaders);
 
       if (response.statusCode == 200) {
         final String jsonString = utf8.decode(response.bodyBytes);
-
-        // 3. Guardamos los nuevos datos en el disco duro para la próxima vez
         await prefs.setString('personal_cache', jsonString);
-
-        // 4. Actualizamos las variables con los datos frescos
         _allEmployees = await compute(parseEmployeesInBackground, jsonString);
         _actualizarListasSecundarias();
-
-        // Al notificar, la pantalla se actualiza sola sin que el usuario note esperas
         _isLoading = false;
         notifyListeners();
       }
     } catch (e) {
       print('Error Conexión Fetch: $e');
       _isLoading = false;
-      notifyListeners(); // Apagamos la ruedita por si falló el internet
+      notifyListeners();
     }
   }
 
-  // Pequeña función auxiliar para no repetir código
   void _actualizarListasSecundarias() {
     _unidadesDisponibles.clear();
     _estadosDisponibles.clear();
+    _cargosDisponibles.clear(); // 🔥 LIMPIAMOS CARGOS
+
     for (var emp in _allEmployees) {
-      _unidadesDisponibles.add(emp.unidad);
-      _estadosDisponibles.add(emp.estadoActual);
+      if (emp.unidad.isNotEmpty) _unidadesDisponibles.add(emp.unidad);
+      if (emp.estadoActual.isNotEmpty)
+        _estadosDisponibles.add(emp.estadoActual);
+      if (emp.cargo.isNotEmpty)
+        _cargosDisponibles.add(emp.cargo); // 🔥 GUARDAMOS CARGOS
     }
     _applyFilters();
   }
 
-  // =====================================
-  // LÓGICA DE FILTRADO CENTRALIZADA
-  // =====================================
   void _applyFilters() {
     _filteredEmployees = _allEmployees.where((emp) {
-      // 1. Filtro de Búsqueda (Nombre o CI)
       bool matchesSearch = true;
       if (_searchQuery.isNotEmpty) {
         final lowerQuery = _searchQuery.toLowerCase();
@@ -157,50 +122,30 @@ final Set<Employee> _selectedForPrint = {};
             emp.nombreCompleto.toLowerCase().contains(lowerQuery) ||
             emp.carnetIdentidad.contains(_searchQuery);
       }
+      bool matchesUnidad =
+          _selectedUnidadFilter == null || emp.unidad == _selectedUnidadFilter;
+      bool matchesEstado =
+          _selectedEstadoFilter == null ||
+          emp.estadoActual == _selectedEstadoFilter;
 
-      // 2. Filtro de Unidad
-      bool matchesUnidad = true;
-      if (_selectedUnidadFilter != null) {
-        matchesUnidad = emp.unidad == _selectedUnidadFilter;
-      }
-
-      // 3. Filtro de Estado
-      bool matchesEstado = true;
-      if (_selectedEstadoFilter != null) {
-        matchesEstado = emp.estadoActual == _selectedEstadoFilter;
-      }
-
-      // El empleado debe cumplir TODAS las condiciones activas para mostrarse
       return matchesSearch && matchesUnidad && matchesEstado;
     }).toList();
-
     notifyListeners();
   }
 
-  // =====================================
-  // ACCIONES DE LA INTERFAZ
-  // =====================================
-
+  // === ACCIONES DE LA INTERFAZ ===
   void search(String query) {
     _searchQuery = query;
     _applyFilters();
   }
 
   void toggleUnidadFilter(String unidad) {
-    if (_selectedUnidadFilter == unidad) {
-      _selectedUnidadFilter = null; // Apaga el filtro si lo vuelven a presionar
-    } else {
-      _selectedUnidadFilter = unidad;
-    }
+    _selectedUnidadFilter = _selectedUnidadFilter == unidad ? null : unidad;
     _applyFilters();
   }
 
   void toggleEstadoFilter(String estado) {
-    if (_selectedEstadoFilter == estado) {
-      _selectedEstadoFilter = null;
-    } else {
-      _selectedEstadoFilter = estado;
-    }
+    _selectedEstadoFilter = _selectedEstadoFilter == estado ? null : estado;
     _applyFilters();
   }
 
@@ -211,59 +156,133 @@ final Set<Employee> _selectedForPrint = {};
     _applyFilters();
   }
 
-  // =====================================
-  // ACCIÓN DE IMPRIMIR CREDENCIALES
-  // =====================================
-  // =====================================
-  // ACCIÓN DE IMPRIMIR CREDENCIALES (REAL A BD)
-  // =====================================
-  Future<bool> markAsPrinted(Employee emp) async {
-    try {
-      // 1. Armamos la URL con el ID del empleado
-      final url = Uri.parse(
-        '$_baseUrl/api/estados-personal/${emp.id}/imprimir-credencial',
-      );
-
-      // 2. Hacemos la petición PUT al servidor
-      final response = await http.put(
-        url,
-        headers: {
-          'Accept': 'application/json',
-          // Descomenta esto si vuelve a molestar el CORS
-        },
-      );
-
-      // 3. Si el servidor responde OK (200), actualizamos la pantalla
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final index = _allEmployees.indexWhere((e) => e.id == emp.id);
-        if (index != -1) {
-          // Usamos copyWith para mantener todos sus datos y solo cambiar su estado visualmente
-          _allEmployees[index] = emp.copyWith(
-            estadoActual: "CREDENCIAL IMPRESO",
-          );
-          _applyFilters();
-        }
-        return true; // Éxito
-      } else {
-        print('Error en BD al imprimir: ${response.statusCode}');
-        print('Respuesta: ${response.body}');
-        return false; // Falló
-      }
-    } catch (e) {
-      print('Error de conexión al imprimir: $e');
-      return false; // Falló
-    }
+  void toggleSelection(Employee emp) {
+    if (_selectedForPrint.contains(emp))
+      _selectedForPrint.remove(emp);
+    else
+      _selectedForPrint.add(emp);
+    notifyListeners();
   }
 
-  // =====================================
-  // ACTUALIZAR EMPLEADO EDITADO
-  // =====================================
+  void clearSelection() {
+    _selectedForPrint.clear();
+    notifyListeners();
+  }
+
   void updateEmployeeLocal(Employee updatedEmployee) {
-    // Buscamos al empleado en la lista y lo reemplazamos por el nuevo
     final index = _allEmployees.indexWhere((e) => e.id == updatedEmployee.id);
     if (index != -1) {
       _allEmployees[index] = updatedEmployee;
-      _applyFilters(); // Refresca la tabla al instante
+      _applyFilters();
+    }
+  }
+
+  // =========================================================================================
+  // 🔥🔥🔥 LÓGICA DE ACTUALIZACIONES HTTP (EL NUEVO FLUJO QUE HICIMOS HOY) 🔥🔥🔥
+  // =========================================================================================
+
+  // 1. IMPRIMIR CREDENCIAL (Ya lo tenías, lo dejamos igual)
+  // =========================================================================================
+  // 🔥🔥🔥 LÓGICA DE ACTUALIZACIONES HTTP (RUTAS OFICIALES SPRING BOOT) 🔥🔥🔥
+  // =========================================================================================
+
+  // 1. IMPRIMIR CREDENCIAL (Este ya lo tenías)
+  Future<bool> markAsPrinted(Employee emp) async {
+    try {
+      final url = Uri.parse(
+        '$_baseUrl/api/estados-personal/${emp.id}/imprimir-credencial',
+      );
+      final response = await http.put(url, headers: Environment.authHeaders);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        updateEmployeeLocal(emp.copyWith(estadoActual: "CREDENCIAL IMPRESO"));
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 2. 🔥 ENTREGAR CREDENCIAL -> PASA A "PERSONA ACTIVA"
+  Future<bool> marcarComoActivoMasivo(List<Employee> empleados) async {
+    bool exitoGeneral = true;
+    for (var emp in empleados) {
+      try {
+        final url = Uri.parse(
+          '$_baseUrl/api/estados-personal/${emp.id}/entregar-credencial',
+        );
+        final response = await http.put(url, headers: Environment.authHeaders);
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          updateEmployeeLocal(emp.copyWith(estadoActual: "PERSONA ACTIVA"));
+        } else {
+          exitoGeneral = false;
+        }
+      } catch (e) {
+        exitoGeneral = false;
+      }
+    }
+    return exitoGeneral;
+  }
+
+  // 3. 🔥 DEVOLVER CREDENCIAL -> PASA DIRECTO A "CONTRATO FINALIZADO" (2x1)
+  Future<bool> marcarContratoFinalizadoMasivo(List<Employee> empleados) async {
+    bool exitoGeneral = true;
+    for (var emp in empleados) {
+      try {
+        final url = Uri.parse(
+          '$_baseUrl/api/estados-personal/${emp.id}/devolver-credencial',
+        );
+        final response = await http.put(url, headers: Environment.authHeaders);
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          // El backend ya lo finalizó, así que en Flutter lo mostramos como finalizado
+          updateEmployeeLocal(
+            emp.copyWith(estadoActual: "CONTRATO FINALIZADO"),
+          );
+        } else {
+          exitoGeneral = false;
+        }
+      } catch (e) {
+        exitoGeneral = false;
+      }
+    }
+    return exitoGeneral;
+  }
+
+  // 4. 🔥 ACTUALIZAR DATOS DEL EMPLEADO (EDITAR)
+  Future<bool> updateEmployee(
+    int empleadoId,
+    Map<String, dynamic> newData,
+  ) async {
+    try {
+      final url = Uri.parse('$_baseUrl/api/personal/$empleadoId/admin');
+      final response = await http.put(
+        url,
+        headers: Environment.authHeaders,
+        body: jsonEncode(newData),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final index = _allEmployees.indexWhere((e) => e.id == empleadoId);
+        if (index != -1) {
+          updateEmployeeLocal(
+            _allEmployees[index].copyWith(
+              nombre: newData['nombre'],
+              carnetIdentidad: newData['ci'],
+              celular: newData['celular'],
+              cargo: newData['cargo'],
+              unidad: newData['unidad'],
+            ),
+          );
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error al actualizar empleado HTTP: $e');
+      return false;
     }
   }
 
@@ -273,61 +292,37 @@ final Set<Employee> _selectedForPrint = {};
   Future<bool> deleteEmployee(int id) async {
     try {
       final url = Uri.parse('$_baseUrl/api/personal/$id');
-
-      final response = await http.delete(
-        url,
-        headers: {'Accept': 'application/json'},
-      );
-
+      final response = await http.delete(url, headers: Environment.authHeaders);
       if (response.statusCode == 200 || response.statusCode == 204) {
-        // Lo borramos de la lista principal
         _allEmployees.removeWhere((emp) => emp.id == id);
-
-        // Refrescamos los filtros y la tabla
         _applyFilters();
         return true;
-      } else {
-        print('Error al eliminar: ${response.statusCode}');
-        return false;
       }
+      return false;
     } catch (e) {
-      print('Error de conexión al eliminar: $e');
       return false;
     }
   }
 
   // =====================================
-  // VARIABLES PARA REPORTES
+  // REPORTES (Igual que el tuyo)
   // =====================================
-  List<dynamic> _reportData =
-      []; // Usamos dynamic para leer directo de tu nuevo endpoint
+  List<dynamic> _reportData = [];
   List<dynamic> get reportData => _reportData;
   int get reportTotal => _reportData.length;
 
-  // =====================================
-  // BUSCAR POR CIRCUNSCRIPCIÓN (NUEVO ENDPOINT)
-  // =====================================
   Future<void> fetchReportePorCircunscripcion(String cir) async {
     _isLoading = true;
-    _reportData = []; // Limpiamos la búsqueda anterior
+    _reportData = [];
     notifyListeners();
-
     try {
-      final url = Uri.parse('$_baseUrl/api/personal/por/circunscripcion/$cir');
-
       final response = await http.get(
-        url,
-        headers: {'Accept': 'application/json'},
+        Uri.parse('$_baseUrl/api/personal/por/circunscripcion/$cir'),
+        headers: Environment.authHeaders,
       );
-
-      if (response.statusCode == 200) {
-        // Decodificamos la lista exacta que nos manda tu Swagger
+      if (response.statusCode == 200)
         _reportData = json.decode(utf8.decode(response.bodyBytes));
-      } else {
-        print('Error en reporte: ${response.statusCode}');
-      }
     } catch (e) {
-      print('Error Conexión Reporte: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -340,10 +335,8 @@ final Set<Employee> _selectedForPrint = {};
   }
 }
 
-// Esta función va AFUERA de la clase, al final del archivo
+// Función fuera de la clase para Compute
 List<Employee> parseEmployeesInBackground(String responseBody) {
-  // Traduce el texto gigante a una lista de Empleados sin congelar la app
   final List<dynamic> decoded = json.decode(responseBody);
   return decoded.map((e) => Employee.fromJson(e)).toList();
 }
-

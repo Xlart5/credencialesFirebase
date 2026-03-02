@@ -63,22 +63,28 @@ class SidebarFilter extends StatelessWidget {
           ),
           const SizedBox(height: 15),
 
-          // LISTA DINÁMICA DE UNIDADES
-          ...provider.unidadesDisponibles.map((unidad) {
-            // Verificamos si este botón está presionado
-            final isSelected = provider.selectedUnidadFilter == unidad;
-            // Contamos cuántas personas pertenecen a esta unidad
-            final count = allEmp.where((e) => e.unidad == unidad).length;
+          // 🔥 SOLUCIÓN AL OVERFLOW: Expandimos y hacemos scrollable la lista de Unidades
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: provider.unidadesDisponibles.map((unidad) {
+                  // Verificamos si este botón está presionado
+                  final isSelected = provider.selectedUnidadFilter == unidad;
+                  // Contamos cuántas personas pertenecen a esta unidad
+                  final count = allEmp.where((e) => e.unidad == unidad).length;
 
-            return _buildUnidadItem(
-              title: unidad,
-              count: count,
-              isSelected: isSelected,
-              onTap: () => provider.toggleUnidadFilter(unidad),
-            );
-          }).toList(),
+                  return _buildUnidadItem(
+                    title: unidad,
+                    count: count,
+                    isSelected: isSelected,
+                    onTap: () => provider.toggleUnidadFilter(unidad),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
 
-          const SizedBox(height: 30),
+          const SizedBox(height: 20),
 
           // 3. SECCIÓN ESTADOS
           const Text(
@@ -101,11 +107,13 @@ class SidebarFilter extends StatelessWidget {
 
               // Lógica de colores según la palabra
               Color baseColor = Colors.grey;
-              if (estado.toUpperCase().contains('IMPRESO'))
+              if (estado.toUpperCase().contains('IMPRESO')) {
                 baseColor = Colors.green;
+              }
               if (estado.toUpperCase().contains('REGISTRADO') ||
-                  estado.toUpperCase().contains('PENDIENTE'))
+                  estado.toUpperCase().contains('PENDIENTE')) {
                 baseColor = Colors.orange;
+              }
 
               return _buildEstadoChip(
                 estado: estado,
@@ -116,7 +124,9 @@ class SidebarFilter extends StatelessWidget {
             }).toList(),
           ),
 
-          const Spacer(), // Empuja el botón limpiar al fondo
+          const SizedBox(
+            height: 20,
+          ), // Un pequeño espacio antes del botón limpiar
           // 4. BOTÓN LIMPIAR FILTROS (Solo aparece si hay algún filtro activo)
           if (provider.selectedUnidadFilter != null ||
               provider.selectedEstadoFilter != null ||

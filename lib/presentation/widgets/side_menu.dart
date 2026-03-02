@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart'; // 🔥 Importante para leer el provider correcto
+
+import '../../config/provider/auth_provider.dart';
 import '../../config/theme/app_colors.dart';
 
 class SideMenu extends StatelessWidget {
@@ -123,19 +126,38 @@ class SideMenu extends StatelessWidget {
           // --- FOOTER ---
           Padding(
             padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.verified_user_outlined,
-                  size: 16,
-                  color: Colors.grey[400],
+            child: InkWell(
+              onTap: () async {
+                // 🔥 LECTURA CORRECTA DEL PROVIDER
+                // Usamos read() porque estamos dentro de un onTap (un evento)
+                await context.read<AuthProvider>().logout();
+
+                if (context.mounted) {
+                  Navigator.pop(context); // Cierra el Drawer
+                  context.go('/login'); // Redirige al login
+                }
+              },
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  border: Border.all(color: Colors.red, width: 1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  "Admin Verificado",
-                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.logout_rounded, size: 20, color: Colors.black),
+                      SizedBox(width: 10),
+                      Text(
+                        "Desconectarse",
+                        style: TextStyle(color: Colors.black, fontSize: 15),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
         ],

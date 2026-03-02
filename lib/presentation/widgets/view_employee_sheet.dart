@@ -1,157 +1,139 @@
 import 'package:flutter/material.dart';
 import '../../config/models/employee_model.dart';
+import '../../config/theme/app_colors.dart';
 
-class ViewEmployeeSheet extends StatelessWidget {
-  final Employee employee;
-
-  const ViewEmployeeSheet({super.key, required this.employee});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 500, // Ancho fijo para que se vea elegante en la web
-      padding: const EdgeInsets.all(30),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // --- HEADER ---
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.person_search, color: Colors.blueAccent),
-                  const SizedBox(width: 10),
-                  const Text(
-                    "Detalles del Registro",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, color: Colors.grey),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-          const Divider(height: 30),
-
-          // --- FOTO Y ESTADO ---
-          Center(
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Colors.grey[200],
-                  backgroundImage: NetworkImage(employee.photoUrl),
-                  onBackgroundImageError: (_, __) =>
-                      const Icon(Icons.person, size: 50, color: Colors.grey),
-                ),
-                const SizedBox(height: 15),
-                // Insignia de Estado
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: employee.estado == 1
-                        ? Colors.green.withOpacity(0.1)
-                        : Colors.orange.withOpacity(0.1),
-                    border: Border.all(color: employee.colorEstado),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    "ESTADO: ${employee.estadoActual.toUpperCase()}",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: employee.colorEstado,
-                    ),
-                  ),
-                ),
-              ],
+// Función pública para llamar al diálogo desde cualquier parte
+void showViewEmployeeDialog(BuildContext context, Employee emp) {
+  showDialog(
+    context: context,
+    builder: (ctx) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(25),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // FOTO
+            CircleAvatar(
+              radius: 45,
+              backgroundColor: AppColors.primaryDark.withOpacity(0.1),
+              backgroundImage: (emp.photoUrl.isNotEmpty)
+                  ? NetworkImage(emp.photoUrl)
+                  : null,
+              child: (emp.photoUrl.isEmpty)
+                  ? Text(
+                      emp.nombreCompleto.isNotEmpty
+                          ? emp.nombreCompleto[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        fontSize: 30,
+                        color: AppColors.primaryDark,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
-          ),
-          const SizedBox(height: 30),
-
-          // --- DATOS DEL EMPLEADO ---
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _buildDataColumn("Nombres", employee.nombre)),
-              Expanded(
-                child: _buildDataColumn(
-                  "Apellidos",
-                  "${employee.apellidoPaterno} ${employee.apellidoMaterno}",
-                ),
+            const SizedBox(height: 15),
+            Text(
+              emp.nombreCompleto,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryDark,
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _buildDataColumn("Cédula de Identidad", employee.ci),
-              ),
-              Expanded(
-                child: _buildDataColumn("Unidad / Sección", employee.unidad),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          _buildDataColumn("Cargo Asignado", employee.cargo),
-          const SizedBox(height: 30),
-
-          // --- BOTÓN DE CERRAR ---
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[200],
-                foregroundColor: Colors.black87,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 30,
-                  vertical: 15,
-                ),
-              ),
-              child: const Text("Cerrar"),
             ),
+            const SizedBox(height: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                emp.cargo,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 15),
+              child: Divider(),
+            ),
+
+            // DATOS COMPLETOS
+            _infoRow(icon: Icons.badge_outlined, label: "C.I.", value: emp.ci),
+            const SizedBox(height: 10),
+            _infoRow(
+              icon: Icons.business_outlined,
+              label: "Unidad",
+              value: emp.unidad,
+            ),
+            const SizedBox(height: 10),
+            _infoRow(
+              icon: Icons.phone_android_outlined,
+              label: "Celular",
+              value: emp.celular.isNotEmpty ? emp.celular : "No registrado",
+            ),
+            const SizedBox(height: 10),
+            _infoRow(
+              icon: Icons.email_outlined,
+              label: "Correo",
+              value: emp.correo ?? "No registrado",
+            ),
+            const SizedBox(height: 10),
+            _infoRow(
+              icon: Icons.info_outline,
+              label: "Estado",
+              value: emp.estadoActual,
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryDark,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text("Cerrar", style: TextStyle(color: Colors.white)),
           ),
         ],
-      ),
-    );
-  }
+      );
+    },
+  );
+}
 
-  // Widget de ayuda para mostrar los datos ordenados
-  Widget _buildDataColumn(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey,
-          ),
+// Fila reutilizable para el diseño
+Widget _infoRow({
+  required IconData icon,
+  required String label,
+  required String value,
+}) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 20, color: Colors.grey[600]),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 15, color: Colors.black87),
-        ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
 }

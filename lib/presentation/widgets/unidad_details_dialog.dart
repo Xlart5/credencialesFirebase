@@ -1,13 +1,11 @@
 import 'package:carnetizacion/config/provider/unidades_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// Asegúrate de que esta ruta coincida con la tuya
 import 'package:carnetizacion/presentation/widgets/add_cargo_sheet.dart';
-
 import '../../config/models/unidad_model.dart';
 
 class UnidadDetailsDialog extends StatefulWidget {
-  final UnidadModel unidad; // Actualizado a nuestro nuevo modelo
+  final UnidadModel unidad;
 
   const UnidadDetailsDialog({super.key, required this.unidad});
 
@@ -18,24 +16,17 @@ class UnidadDetailsDialog extends StatefulWidget {
 class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
   @override
   Widget build(BuildContext context) {
-    // 1. Obtenemos los datos dinámicos desde el Provider
     final provider = context.watch<UnidadesProvider>();
     final cargos = provider.getCargosPorUnidad(widget.unidad.id);
 
-    // 2. Calculamos colores y textos basados en el estado real (true/false) de la BD
     final colorEstado = widget.unidad.estado ? Colors.green : Colors.redAccent;
     final textoEstado = widget.unidad.estado ? "ACTIVO" : "INACTIVO";
 
-    // Usamos Dialog para que aparezca centrado y oscurezca el fondo
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(
-        20,
-      ), // Margen externo en pantallas pequeñas
+      insetPadding: const EdgeInsets.all(20),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: 950,
-        ), // Ancho máximo para PC
+        constraints: const BoxConstraints(maxWidth: 950),
         child: Container(
           padding: const EdgeInsets.all(30),
           decoration: BoxDecoration(
@@ -75,17 +66,16 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                 ),
                 const Divider(height: 40),
 
-                // --- 2. TARJETAS DE RESUMEN (AZUL Y VERDE) ---
+                // --- 2. TARJETAS DE RESUMEN ---
                 Row(
                   children: [
-                    // Tarjeta Azul (Personal)
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(25),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
-                          ), // Azul intenso
+                          ),
                           borderRadius: BorderRadius.circular(15),
                           boxShadow: [
                             BoxShadow(
@@ -112,7 +102,7 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                                 ),
                                 const SizedBox(height: 5),
                                 Text(
-                                  "${cargos.length}", // Cuenta automáticamente los cargos reales
+                                  "${cargos.length}",
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 42,
@@ -138,14 +128,11 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                       ),
                     ),
                     const SizedBox(width: 20),
-                    // Tarjeta Verde/Naranja/Rojo (Estado)
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(25),
                         decoration: BoxDecoration(
-                          color: colorEstado.withOpacity(
-                            0.1,
-                          ), // Fondo suave según estado
+                          color: colorEstado.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(15),
                           border: Border.all(
                             color: colorEstado.withOpacity(0.3),
@@ -232,7 +219,11 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                           isScrollControlled: true,
                           backgroundColor: Colors.transparent,
                           builder: (context) {
-                            return const Center(child: AddCargoSheet());
+                            return Center(
+                              child: AddCargoSheet(
+                                unidadId: widget.unidad.id,
+                              ), // 🔥 PASAMOS EL ID CORRECTAMENTE
+                            );
                           },
                         );
                       },
@@ -256,7 +247,6 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                   ),
                   child: Column(
                     children: [
-                      // Header de la tabla
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
@@ -306,7 +296,6 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                         ),
                       ),
                       const Divider(height: 1),
-                      // Lista de filas
                       cargos.isEmpty
                           ? const Padding(
                               padding: EdgeInsets.all(40.0),
@@ -318,10 +307,9 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                               ),
                             )
                           : ListView.separated(
-                              shrinkWrap:
-                                  true, // Importante dentro de un Dialog
+                              shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              itemCount: cargos.length, // Dinámico
+                              itemCount: cargos.length,
                               separatorBuilder: (context, index) => Divider(
                                 height: 1,
                                 color: Colors.grey.shade200,
@@ -336,7 +324,6 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                                   ),
                                   child: Row(
                                     children: [
-                                      // Nombre del Cargo con icono
                                       Expanded(
                                         flex: 3,
                                         child: Row(
@@ -349,8 +336,7 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                                                     BorderRadius.circular(6),
                                               ),
                                               child: const Icon(
-                                                Icons
-                                                    .work_outline, // Icono genérico real
+                                                Icons.work_outline,
                                                 size: 16,
                                                 color: Colors.blue,
                                               ),
@@ -370,7 +356,6 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                                           ],
                                         ),
                                       ),
-                                      // Cantidad (Badge gris)
                                       Expanded(
                                         flex: 2,
                                         child: Center(
@@ -385,7 +370,7 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                                                   BorderRadius.circular(10),
                                             ),
                                             child: const Text(
-                                              "-", // La API actual de cargos no devuelve la cantidad exacta de empleados por cargo
+                                              "-",
                                               style: TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 12,
@@ -395,17 +380,42 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                                           ),
                                         ),
                                       ),
-                                      // Acciones (Menú de tres puntos)
                                       Expanded(
                                         flex: 1,
                                         child: Align(
                                           alignment: Alignment.centerRight,
-                                          child: IconButton(
-                                            onPressed: () {},
-                                            icon: Icon(
-                                              Icons.more_horiz,
-                                              color: Colors.grey.shade400,
-                                            ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                onPressed: () {
+                                                  _mostrarDialogoEditar(
+                                                    context,
+                                                    cargo,
+                                                    provider,
+                                                    widget.unidad.id,
+                                                  );
+                                                },
+                                                icon: const Icon(
+                                                  Icons.edit,
+                                                  color: Colors.blueAccent,
+                                                ),
+                                              ),
+                                              IconButton(
+                                                onPressed: () {
+                                                  _mostrarDialogoEliminar(
+                                                    context,
+                                                    cargo,
+                                                    provider,
+                                                    widget.unidad.id,
+                                                  );
+                                                },
+                                                icon: const Icon(
+                                                  Icons.delete,
+                                                  color: Colors.redAccent,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),
@@ -421,6 +431,131 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _mostrarDialogoEliminar(
+    BuildContext context,
+    CargoUnidadModel cargo,
+    UnidadesProvider provider,
+    int unidadId,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Eliminar Cargo"),
+        content: Text(
+          "¿Estás seguro de eliminar el cargo '${cargo.nombre}'? Esta acción no se puede deshacer.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              bool success = await provider.deleteCargo(cargo.id, unidadId);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? "Cargo eliminado con éxito"
+                          : "Error al eliminar",
+                    ),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              "Eliminar",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _mostrarDialogoEditar(
+    BuildContext context,
+    CargoUnidadModel cargo,
+    UnidadesProvider provider,
+    int unidadId,
+  ) {
+    final TextEditingController editCtrl = TextEditingController(
+      text: cargo.nombre,
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          "Editar Cargo",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Nombre del Cargo:",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: editCtrl,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+            onPressed: () async {
+              final nuevoNombre = editCtrl.text.trim();
+              if (nuevoNombre.isEmpty) return;
+
+              Navigator.pop(ctx);
+              bool success = await provider.updateCargo(
+                cargo.id,
+                unidadId,
+                nuevoNombre,
+              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? "Cargo actualizado con éxito"
+                          : "Error al actualizar",
+                    ),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              "Guardar Cambios",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
       ),
     );
   }

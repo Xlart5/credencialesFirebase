@@ -13,11 +13,17 @@ class PdfGeneratorService {
   // ==========================================
   // 1. EL JEFE (Se ejecuta en la pantalla principal)
   // ==========================================
-  static Future<Uint8List> generateCredentialsPdf(List<Employee> employees) async {
+  static Future<Uint8List> generateCredentialsPdf(
+    List<Employee> employees,
+  ) async {
     // Leemos los archivos de la carpeta assets aquí, porque el "sótano" (Isolate)
     // no tiene acceso a las carpetas del sistema.
-    final frontData = await rootBundle.load('assets/images/card_template_front.png');
-    final backData = await rootBundle.load('assets/images/ATRAS_EVENTUAL_2025.png');
+    final frontData = await rootBundle.load(
+      'assets/images/card_template_front.png',
+    );
+    final backData = await rootBundle.load(
+      'assets/images/ATRAS_EVENTUAL_2025.png',
+    );
     final tedData = await rootBundle.load('assets/images/logo_ted.png');
     final elecData = await rootBundle.load('assets/images/logo_elecciones.png');
 
@@ -37,11 +43,13 @@ class PdfGeneratorService {
   // ==========================================
   // 2. EL SÓTANO (Trabaja en segundo plano sin congelar)
   // ==========================================
-  static Future<Uint8List> _generarPdfEnSotano(Map<String, dynamic> data) async {
+  static Future<Uint8List> _generarPdfEnSotano(
+    Map<String, dynamic> data,
+  ) async {
     // 1. Desempacamos la caja
     final employees = data['employees'] as List<Employee>;
-    
-    // 2. Reconstruimos las imágenes en la memoria del sótano
+
+    // 2. Reconstruimos las imágenes fijas en la memoria del sótano
     final templateFront = pw.MemoryImage(data['frontBytes']);
     final templateBack = pw.MemoryImage(data['backBytes']);
     final logoTed = pw.MemoryImage(data['tedBytes']);
@@ -54,33 +62,27 @@ class PdfGeneratorService {
     for (var i = 0; i < employees.length; i += itemsPerPage) {
       final chunk = employees.sublist(
         i,
-        (i + itemsPerPage) < employees.length ? i + itemsPerPage : employees.length,
+        (i + itemsPerPage) < employees.length
+            ? i + itemsPerPage
+            : employees.length,
       );
 
-      // --- 🚀 MEGA OPTIMIZACIÓN DE DESCARGAS ---
-      // Disparamos QRs y Fotos al mismo tiempo
-      final qrsFuture = Future.wait(chunk.map((emp) async {
-        if (emp.qrUrl.isEmpty) return logoTed;
-        try {
-          final res = await http.get(Uri.parse(emp.qrUrl));
-          if (res.statusCode == 200) return pw.MemoryImage(res.bodyBytes);
-        } catch (_) {}
-        return logoTed;
-      }));
+      // --- 🚀 OPTIMIZACIÓN DE DESCARGAS (SOLO FOTOS) ---
+      // Ya no descargamos QRs, solo descargamos las fotos de los usuarios.
+      final photosFuture = Future.wait(
+        chunk.map((emp) async {
+          if (emp.photoUrl.isEmpty)
+            return logoTed; // Si no hay foto, ponemos el logo del TED por defecto
+          try {
+            final res = await http.get(Uri.parse(emp.photoUrl));
+            if (res.statusCode == 200) return pw.MemoryImage(res.bodyBytes);
+          } catch (_) {}
+          return logoTed;
+        }),
+      );
 
-      final photosFuture = Future.wait(chunk.map((emp) async {
-        if (emp.photoUrl.isEmpty) return logoTed;
-        try {
-          final res = await http.get(Uri.parse(emp.photoUrl));
-          if (res.statusCode == 200) return pw.MemoryImage(res.bodyBytes);
-        } catch (_) {}
-        return logoTed;
-      }));
-
-      // Esperamos a que ambas listas terminen simultáneamente
-      final results = await Future.wait([qrsFuture, photosFuture]);
-      final List<pw.ImageProvider> qrs = results[0];
-      final List<pw.ImageProvider> photos = results[1];
+      // Esperamos a que todas las fotos del lote se descarguen
+      final List<pw.ImageProvider> photos = await photosFuture;
 
       // --- PÁGINA 1: FRENTE ---
       pdf.addPage(
@@ -96,8 +98,11 @@ class PdfGeneratorService {
               children: List.generate(itemsPerPage, (index) {
                 if (index < chunk.length) {
                   return _buildFrontCard(
-                    chunk[index], photos[index], templateFront,
-                    logoTed, logoElecciones, qrs[index] // Pásale tu lógica de QR
+                    chunk[index],
+                    photos[index],
+                    templateFront,
+                    logoTed,
+                    logoElecciones,
                   );
                 } else {
                   return pw.SizedBox(width: cardWidth, height: cardHeight);
@@ -144,90 +149,6 @@ class PdfGeneratorService {
     return pdf.save();
   }
 
-  // 👇 MANTÉN TUS DISEÑOS EXACTAMENTE IGUAL AQUÍ 👇
-  // static pw.Widget _buildFrontCard(...) { ... }
-  // static pw.Widget _buildBackCard(...) { ... }
-
-
-  static Future<pw.MemoryImage> _loadAsset(String path) async {
-    try {
-      final data = await rootBundle.load(path);
-      return pw.MemoryImage(data.buffer.asUint8List());
-    } catch (e) {
-      return pw.MemoryImage(
-        Uint8List.fromList([
-          0x89,
-          0x50,
-          0x4E,
-          0x47,
-          0x0D,
-          0x0A,
-          0x1A,
-          0x0A,
-          0x00,
-          0x00,
-          0x00,
-          0x0D,
-          0x49,
-          0x48,
-          0x44,
-          0x52,
-          0x00,
-          0x00,
-          0x00,
-          0x01,
-          0x00,
-          0x00,
-          0x00,
-          0x01,
-          0x08,
-          0x06,
-          0x00,
-          0x00,
-          0x00,
-          0x1F,
-          0x15,
-          0xC4,
-          0x89,
-          0x00,
-          0x00,
-          0x00,
-          0x0A,
-          0x49,
-          0x44,
-          0x41,
-          0x54,
-          0x78,
-          0x9C,
-          0x63,
-          0x00,
-          0x01,
-          0x00,
-          0x00,
-          0x05,
-          0x00,
-          0x01,
-          0x0D,
-          0x0A,
-          0x2D,
-          0xB4,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x49,
-          0x45,
-          0x4E,
-          0x44,
-          0xAE,
-          0x42,
-          0x60,
-          0x82,
-        ]),
-      );
-    }
-  }
-
   // --- DISEÑO FRONTAL ---
   static pw.Widget _buildFrontCard(
     Employee emp,
@@ -235,12 +156,13 @@ class PdfGeneratorService {
     pw.ImageProvider bg,
     pw.ImageProvider logoTed,
     pw.ImageProvider logoElec,
-    pw.ImageProvider qrs,
   ) {
-    // 👇 LA MAGIA CONDICIONAL EMPIEZA AQUÍ 👇
+    // LA MAGIA CONDICIONAL
     final String cargoMinusculas = emp.cargo.toString().toLowerCase();
     final bool esNotario = cargoMinusculas.contains('notari');
-    // 👆 LA MAGIA CONDICIONAL TERMINA AQUÍ 👆
+
+    // Validación de seguridad para el QR (Evita crasheos si la API manda vacío)
+    final String qrData = emp.qrUrl.isNotEmpty ? emp.qrUrl : "SIN_QR_ASIGNADO";
 
     return pw.Container(
       width: cardWidth,
@@ -254,24 +176,20 @@ class PdfGeneratorService {
           // 1. Fondo
           pw.Positioned.fill(child: pw.Image(bg, fit: pw.BoxFit.fill)),
 
-          // 2. Header
-
-          // 3. QR o CIRCUNSCRIPCIÓN (Reemplazado con la condición)
+          // 2. QR o CIRCUNSCRIPCIÓN
           pw.Positioned(
-            top: 30,
+            top: 40,
             left: 30,
             child: esNotario
                 // SI ES NOTARIO: Mostramos la cajita de Circunscripción
                 ? pw.Container(
                     width: 70,
                     height: 70,
-
                     child: pw.Column(
                       mainAxisAlignment: pw.MainAxisAlignment.center,
                       children: [
                         pw.SizedBox(height: 5),
                         pw.Text(
-                          // Aquí llamamos a tu variable de circunscripción
                           emp.Circu.toString(),
                           textAlign: pw.TextAlign.center,
                           style: pw.TextStyle(
@@ -283,16 +201,24 @@ class PdfGeneratorService {
                       ],
                     ),
                   )
-                // SI NO ES NOTARIO: Mostramos el QR normal
+                // SI NO ES NOTARIO: Mostramos el QR usando la librería nativa
                 : pw.Container(
-                    width: 70,
-                    height: 70,
+                    width: 60,
+                    height: 60,
                     color: PdfColors.white,
-                    child: pw.Image(qrs, fit: pw.BoxFit.cover),
+                    child: pw.BarcodeWidget(
+                      barcode: pw.Barcode.qrCode(),
+                      data:
+                          qrData, // Aquí entra tu texto "QR-123456-..." de la BD
+                      width: 60,
+                      height: 60,
+                      color: PdfColors.black,
+                      backgroundColor: PdfColors.white,
+                    ),
                   ),
           ),
 
-          // 4. Logo TED
+          // 3. Logo TED
           pw.Positioned(
             top: 110,
             left: 78,
@@ -303,7 +229,7 @@ class PdfGeneratorService {
             ),
           ),
 
-          // 5. FOTO
+          // 4. FOTO
           pw.Positioned(
             top: 35,
             right: 40,
@@ -323,7 +249,7 @@ class PdfGeneratorService {
             ),
           ),
 
-          // 6. DATOS
+          // 5. DATOS
           pw.Positioned(
             bottom: 30,
             right: 15,
@@ -361,14 +287,14 @@ class PdfGeneratorService {
             ),
           ),
 
-          // 7. Logo Elecciones
+          // 6. Logo Elecciones
           pw.Positioned(
             bottom: 28,
             left: 10,
             child: pw.Container(width: 45, child: pw.Image(logoElec)),
           ),
 
-          // 8. Barra Negra
+          // 7. Barra Negra
           pw.Positioned(
             bottom: 0,
             left: 0,

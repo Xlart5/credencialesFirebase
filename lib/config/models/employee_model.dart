@@ -12,6 +12,7 @@ class Employee {
   final String estadoActual;
   final String cargo; // <-- VUELVE A SER TEXTO
   final String unidad; // <-- VUELVE A SER TEXTO
+  final int ImageId;
   final String photoUrl;
   final String qrUrl;
   final String Circu;
@@ -31,6 +32,7 @@ class Employee {
     required this.photoUrl,
     required this.qrUrl,
     required this.Circu,
+    required this.ImageId,
   });
 
   String get nombreCompleto =>
@@ -65,10 +67,10 @@ class Employee {
       cargo: json['cargo'] ?? 'Sin Cargo',
       unidad: json['unidad'] ?? 'Sin Unidad',
       // Si te fijas en tu foto, la API te manda la URL en el campo "imagen"
-      photoUrl:
-          json['imagen'] ,
+      photoUrl: json['imagen'],
       qrUrl: json['qr'],
       Circu: json['nroCircunscripcion'],
+      ImageId: json['imagenId'],
     );
   }
 
@@ -103,6 +105,7 @@ class Employee {
       photoUrl: photoUrl ?? this.photoUrl,
       qrUrl: qrUrl ?? this.qrUrl,
       Circu: circuns ?? this.Circu,
+      ImageId: this.ImageId,
     );
   }
 }

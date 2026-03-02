@@ -1,14 +1,13 @@
-import 'package:carnetizacion/config/provider/employee_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 
+import '../../config/provider/employee_provider.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/helpers/pdf_generator_service.dart';
 import '../../config/models/employee_model.dart';
-import '../widgets/credential_card.dart';
 
 class PrintScreen extends StatefulWidget {
   const PrintScreen({super.key});
@@ -34,7 +33,9 @@ class _PrintScreenState extends State<PrintScreen> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          // HEADER CON LOS DOS BOTONES
+          // ==========================================
+          // 1. HEADER CON LOS DOS BOTONES
+          // ==========================================
           Container(
             color: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
@@ -105,7 +106,7 @@ class _PrintScreenState extends State<PrintScreen> {
                               onLayout: (PdfPageFormat format) async =>
                                   pdfBytes,
                               name:
-                                  'Credenciales_Lote_${DateTime.now().millisecond}',
+                                  'Credenciales_Lote_${DateTime.now().millisecond}.pdf',
                             );
                           } catch (e) {
                             if (context.mounted) {
@@ -149,7 +150,8 @@ class _PrintScreenState extends State<PrintScreen> {
                   ),
                 ),
 
-                const SizedBox(width: 15), // Separación entre botones
+                const SizedBox(width: 15),
+
                 // ==========================================
                 // BOTÓN 2: CONFIRMAR IMPRESIÓN (BASE DE DATOS)
                 // ==========================================
@@ -187,40 +189,103 @@ class _PrintScreenState extends State<PrintScreen> {
             ),
           ),
 
-          // GRID DE CREDENCIALES
+          // ==========================================
+          // 2. LISTA LIGERA DE CREDENCIALES (El diseño que pediste)
+          // ==========================================
           Expanded(
             child: batchToPrint.isEmpty
                 ? const Center(
-                    child: Text("No hay credenciales pendientes de impresión."),
+                    child: Text(
+                      "No hay credenciales pendientes de impresión.",
+                      style: TextStyle(fontSize: 16),
+                    ),
                   )
                 : Padding(
                     padding: const EdgeInsets.all(40.0),
-                    child: GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 400,
-                            mainAxisExtent: 250,
-                            crossAxisSpacing: 30,
-                            mainAxisSpacing: 30,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
                           ),
-                      itemCount: batchToPrint.length,
-                      itemBuilder: (context, index) {
-                        final emp = batchToPrint[index];
-                        return Column(
-                          children: [
-                            Expanded(child: CredentialCard(employee: emp)),
-                            const SizedBox(height: 10),
-                            Text(
-                              emp.nombreCompleto,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                        child: ListView.separated(
+                          itemCount: batchToPrint.length,
+                          separatorBuilder: (context, index) =>
+                              Divider(color: Colors.grey.shade200, height: 1),
+                          itemBuilder: (context, index) {
+                            final emp = batchToPrint[index];
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 25,
+                                vertical: 10,
                               ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        );
-                      },
+                              leading: CircleAvatar(
+                                radius: 22,
+                                backgroundColor: AppColors.primaryDark
+                                    .withOpacity(0.1),
+                                // Mostramos la foto en chiquito si existe, si no, un ícono
+                                backgroundImage:
+                                    (emp.photoUrl != null &&
+                                        emp.photoUrl.isNotEmpty)
+                                    ? NetworkImage(emp.photoUrl)
+                                    : null,
+                                child:
+                                    (emp.photoUrl == null ||
+                                        emp.photoUrl.isEmpty)
+                                    ? const Icon(
+                                        Icons.person,
+                                        color: AppColors.primaryDark,
+                                      )
+                                    : null,
+                              ),
+                              title: Text(
+                                emp.nombreCompleto,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: AppColors.textDark,
+                                ),
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 4.0),
+                                child: Text(
+                                  "CI: ${emp.ci}  •  Cargo: ${emp.cargo}  •  Unidad: ${emp.unidad}",
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Text(
+                                  "Pendiente",
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
           ),
@@ -277,20 +342,37 @@ class _PrintScreenState extends State<PrintScreen> {
                   final listToUpdate = List<Employee>.from(batch);
                   final readProvider = context.read<EmployeeProvider>();
 
-                  // Actualizamos a todos en la Base de Datos
-                  for (final emp in listToUpdate) {
-                    await readProvider.markAsPrinted(emp);
-                  }
+                  // 🔥 OPTIMIZACIÓN: Disparamos todas las peticiones a la API al mismo tiempo
+                  final futures = listToUpdate.map(
+                    (emp) => readProvider.markAsPrinted(emp),
+                  );
+
+                  // Esperamos a que todas las peticiones (las 100) terminen
+                  final resultados = await Future.wait(futures);
+
+                  // Verificamos si hubo algún error en alguna credencial
+                  final bool exitoTotal = !resultados.contains(false);
 
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          "¡Éxito! Base de datos actualizada. Cargando nuevo lote...",
+                    if (exitoTotal) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "¡Éxito! Base de datos actualizada. Cargando nuevo lote...",
+                          ),
+                          backgroundColor: Colors.green,
                         ),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "Advertencia: Algunas credenciales fallaron al actualizarse.",
+                          ),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    }
                   }
                 } catch (e) {
                   if (context.mounted) {

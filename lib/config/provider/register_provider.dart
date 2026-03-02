@@ -123,7 +123,6 @@ class RegisterProvider extends ChangeNotifier {
 
   // === MÉTODOS DE LA API ===
 
-
   Future<bool> uploadImage(XFile file) async {
     _isUploadingImage = true;
     _imageFile = file;
@@ -188,7 +187,7 @@ class RegisterProvider extends ChangeNotifier {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/personal/solicitar-codigo'),
-        headers: {'Content-Type': 'application/json'},
+        headers: Environment.authHeaders,
         body: jsonEncode({"correo": correo, "carnetIdentidad": ci}),
       );
 
@@ -213,7 +212,7 @@ class RegisterProvider extends ChangeNotifier {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/personal/registrar'),
-        headers: {'Content-Type': 'application/json'},
+        headers: Environment.authHeaders,
         body: jsonEncode({
           "nombre": nombre,
           "apellidoPaterno": paterno,
