@@ -4,16 +4,14 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
-class MonitorScreen extends StatefulWidget {
-  final String tipoPuerta; // 🔥 NUEVO: Recibe 'externos' o 'eventuales'
-
-  const MonitorScreen({super.key, required this.tipoPuerta});
+class MonitorExternosScreen extends StatefulWidget {
+  const MonitorExternosScreen({super.key});
 
   @override
-  State<MonitorScreen> createState() => _MonitorScreenState();
+  State<MonitorExternosScreen> createState() => _MonitorScreenState();
 }
 
-class _MonitorScreenState extends State<MonitorScreen> {
+class _MonitorScreenState extends State<MonitorExternosScreen> {
   final FlutterTts _flutterTts = FlutterTts();
   late DatabaseReference _dbRef;
 
@@ -21,18 +19,19 @@ class _MonitorScreenState extends State<MonitorScreen> {
   bool _esperando = true;
   int _ultimoTimestamp = 0;
 
+  // 🔥 NUEVO: SISTEMA DE COLA (QUEUE)
   final List<Map<String, dynamic>> _colaDeEscaneos = [];
-  bool _procesandoCola = false;
+  bool _procesandoCola =
+      false; // Nos avisa si la pantalla está ocupada mostrando a alguien
 
   @override
   void initState() {
     super.initState();
 
-    // 🔥 AHORA ESCUCHA AL CANAL ESPECÍFICO DE ESA PUERTA
     _dbRef = FirebaseDatabase.instanceFor(
       app: Firebase.app(),
       databaseURL: 'https://credenciales-f2be2-default-rtdb.firebaseio.com',
-    ).ref('monitores/${widget.tipoPuerta}');
+    ).ref('ultimo escaneo');
 
     _configurarVoz();
     _escucharFirebase();
@@ -40,6 +39,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
 
   void _configurarVoz() async {
     await _flutterTts.setLanguage("es-ES");
+    // Opcional: Esto hace que Flutter espere a que la voz termine de hablar
     await _flutterTts.awaitSpeakCompletion(true);
   }
 
@@ -55,10 +55,14 @@ class _MonitorScreenState extends State<MonitorScreen> {
             ? (data['timestamp'] as num).toInt()
             : 0;
 
+        // Evitamos procesar el mismo escaneo dos veces
         if (timestampLlegado == _ultimoTimestamp) return;
         _ultimoTimestamp = timestampLlegado;
 
+        // 🔥 En lugar de mostrarlo directo, LO METEMOS A LA COLA
         _colaDeEscaneos.add(data);
+
+        // Y le decimos al sistema que intente procesar la cola
         _procesarSiguienteEnCola();
       } catch (e) {
         print("🚨 ERROR: $e");
@@ -66,12 +70,18 @@ class _MonitorScreenState extends State<MonitorScreen> {
     });
   }
 
+  // 🔥 NUEVO: EL MOTOR QUE CONTROLA EL TIEMPO
   Future<void> _procesarSiguienteEnCola() async {
+    // Si ya estamos mostrando a alguien, o no hay nadie en la cola, no hacemos nada
     if (_procesandoCola || _colaDeEscaneos.isEmpty) return;
+
+    // Bloqueamos la pantalla para que nadie más interrumpa
     _procesandoCola = true;
 
+    // Sacamos al PRIMERO que llegó a la fila
     final dataPersona = _colaDeEscaneos.removeAt(0);
 
+    // 1. Mostramos su info en pantalla
     if (mounted) {
       setState(() {
         _persona = dataPersona;
@@ -79,11 +89,21 @@ class _MonitorScreenState extends State<MonitorScreen> {
       });
     }
 
+    // 2. Hacemos que hable la voz robótica
     await _hablar(dataPersona);
+
+    // 3. TIEMPO DE LECTURA: Esperamos 4 segundos para que el guardia vea la pantalla
     await Future.delayed(const Duration(seconds: 4));
 
-    if (mounted) setState(() => _esperando = true);
+    // 4. Limpiamos la pantalla
+    if (mounted) {
+      setState(() => _esperando = true);
+    }
+
+    // Desbloqueamos el sistema
     _procesandoCola = false;
+
+    // 5. ¡Llamamos recursivamente por si hay alguien más esperando en la cola!
     _procesarSiguienteEnCola();
   }
 
@@ -92,6 +112,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
     final String nombre = data['nombre']?.toString() ?? '';
     final String apellido = data['apellidoPaterno']?.toString() ?? '';
     final String error = data['error']?.toString() ?? 'No registrado';
+
     final String tipoRegistro =
         data['tipoRegistro']?.toString().toLowerCase() ?? 'entrada';
 
@@ -112,10 +133,13 @@ class _MonitorScreenState extends State<MonitorScreen> {
 
   @override
   void dispose() {
-    _flutterTts.stop();
+    _flutterTts.stop(); // Detenemos la voz si cierran la pantalla
     super.dispose();
   }
 
+  // ==========================================================
+  // LA INTERFAZ VISUAL SIGUE EXACTAMENTE IGUAL HACIA ABAJO
+  // ==========================================================
   @override
   Widget build(BuildContext context) {
     if (_esperando) {
@@ -127,15 +151,16 @@ class _MonitorScreenState extends State<MonitorScreen> {
             children: [
               const Icon(Icons.qr_code_scanner, color: Colors.amber, size: 100),
               const SizedBox(height: 20),
-              Text(
-                "MONITOR: PUERTA ${widget.tipoPuerta.toUpperCase()}", // 🔥 Muestra de qué puerta es
-                style: const TextStyle(
+              const Text(
+                "MONITOR DE ACCESO ACTIVO",
+                style: TextStyle(
                   color: Colors.white,
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 10),
+              // Mostramos cuántos están en fila (Opcional, es un buen detalle visual)
               Text(
                 _colaDeEscaneos.isNotEmpty
                     ? "Procesando... (${_colaDeEscaneos.length} en espera)"
@@ -147,6 +172,18 @@ class _MonitorScreenState extends State<MonitorScreen> {
                   fontSize: 18,
                 ),
               ),
+              const SizedBox(height: 40),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.circle, color: Colors.greenAccent, size: 12),
+                  SizedBox(width: 8),
+                  Text(
+                    "Conectado a Firebase RTDB",
+                    style: TextStyle(color: Colors.greenAccent),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -155,6 +192,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
 
     final size = MediaQuery.of(context).size;
     final bool acceso = _persona['accesoComputo'] == true;
+
     final String tipoRegistro =
         _persona['tipoRegistro']?.toString().toLowerCase() ?? 'entrada';
     final Color bgColor = acceso
@@ -162,9 +200,11 @@ class _MonitorScreenState extends State<MonitorScreen> {
               ? const Color(0xFF64B5F6)
               : const Color(0xFFFFD54F))
         : Colors.redAccent;
+
     final IconData mainIcon = acceso
         ? (tipoRegistro == 'salida' ? Icons.exit_to_app : Icons.verified_user)
         : Icons.cancel;
+
     final String title = acceso
         ? (tipoRegistro == 'salida'
               ? "REGISTRO DE\nSALIDA"
@@ -238,6 +278,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
         'S/N';
     final String hora =
         "${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}";
+
     final String textoHora = tipoRegistro == 'salida'
         ? "HORA DE SALIDA:"
         : "HORA DE INGRESO:";

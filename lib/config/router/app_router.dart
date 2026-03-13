@@ -1,9 +1,13 @@
+import 'package:carnetizacion/presentation/screens/certificados_masivo_screen.dart';
+import 'package:carnetizacion/presentation/screens/certificados_screen.dart';
+import 'package:carnetizacion/presentation/screens/generar_qrs_screen.dart';
+import 'package:carnetizacion/presentation/screens/monitor_externo_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart'; // 🔥 Importante para leer el AuthProvider
+import 'package:provider/provider.dart';
 
-import '../../config/provider/auth_provider.dart'; // 🔥 Importamos tu AuthProvider
+import '../../config/provider/auth_provider.dart';
 
 import 'package:carnetizacion/presentation/screens/computo_screen.dart';
 import 'package:carnetizacion/presentation/screens/login_screen.dart';
@@ -28,28 +32,31 @@ final appRouter = GoRouter(
         (defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS);
 
-    // 3. Vemos a qué ruta intenta acceder
-    final isGoingToRegister =
-        state.matchedLocation == '/register'; // 🔥 Typo corregido
+    // 3. Identificamos a qué ruta intenta acceder
+    // 🔥 CORRECCIÓN: Cambié '/register' por '/registro' para que coincida con tu ruta real pública
+    final isGoingToPublicRegister = state.matchedLocation == '/registro';
+    final isGoingToAdminRegister =
+        state.matchedLocation == '/registro-admin'; // 🔥 NUEVA RUTA PRIVADA
     final isGoingToLogin = state.matchedLocation == '/login';
     final isGoingToSuccess = state.matchedLocation.startsWith('/success');
 
     // --- REGLAS ESTRICTAS PARA MÓVIL ---
     if (isMobileDevice) {
-      // Si es MÓVIL, solo puede estar en Registro o en Success.
-      if (!isGoingToRegister && !isGoingToSuccess) {
+      // Si es MÓVIL, solo puede estar en Registro Público o en Success.
+      if (!isGoingToPublicRegister && !isGoingToSuccess) {
         return '/registro';
       }
-      return null; // Lo dejamos pasar a registro o success
+      return null;
     }
     // --- REGLAS ESTRICTAS PARA PC ---
     else {
-      // Si intenta entrar al registro desde PC...
-      if (isGoingToRegister || isGoingToSuccess) {
+      // Si intenta entrar al registro PÚBLICO desde PC...
+      if (isGoingToPublicRegister || isGoingToSuccess) {
         return '/login'; // ... lo rebotamos
       }
 
       // 🔥 SEGURIDAD: Si NO está logueado y trata de ir a cualquier pantalla que no sea login
+      // (Esto protege automáticamente la nueva ruta '/registro-admin' exigiendo sesión)
       if (!isLoggedIn && !isGoingToLogin) {
         return '/login';
       }
@@ -66,10 +73,19 @@ final appRouter = GoRouter(
 
   routes: [
     GoRoute(path: '/', builder: (context, state) => const DashboardScreen()),
+
+    // --- RUTA PÚBLICA (Móvil) ---
     GoRoute(
       path: '/registro',
       builder: (context, state) => const RegisterScreen(),
     ),
+
+    // --- 🔥 RUTA PRIVADA ADMINISTRATIVA (PC) ---
+    GoRoute(
+      path: '/registro-admin',
+      builder: (context, state) => const RegisterScreen(),
+    ),
+
     GoRoute(
       path: '/success',
       builder: (context, state) {
@@ -90,13 +106,36 @@ final appRouter = GoRouter(
       builder: (context, state) => const ComputoScreen(),
     ),
     GoRoute(
-      path: '/acceso',
-      builder: (context, state) => const MonitorScreen(),
+      path: '/acceso/externos/ingreso',
+      builder: (context, state) =>
+          const MonitorScreen(tipoPuerta: 'externos_entrada'),
+    ),
+    GoRoute(
+      path: '/acceso/externos/salida',
+      builder: (context, state) =>
+          const MonitorScreen(tipoPuerta: 'externos_salida'),
+    ),
+    GoRoute(
+      path: '/acceso/eventuales',
+      builder: (context, state) =>
+          const MonitorScreen(tipoPuerta: 'eventuales'),
+    ),
+    GoRoute(
+      path: '/generar-Externos',
+      builder: (context, state) => const GenerarQrsScreen(),
+    ),
+    GoRoute(
+      path: '/certificados',
+      builder: (context, state) => const CertificadosScreen(),
+    ),
+    GoRoute(
+      path: '/certificados-masivo',
+      builder: (context, state) => const CertificadosMasivoScreen(),
     ),
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(
       path: '/reportes',
-      name: 'reportes', // Nombre opcional para usar pushNamed
+      name: 'reportes',
       builder: (context, state) => const ReportsScreen(),
     ),
   ],

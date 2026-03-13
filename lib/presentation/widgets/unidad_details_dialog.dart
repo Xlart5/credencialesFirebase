@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:carnetizacion/presentation/widgets/add_cargo_sheet.dart';
 import '../../config/models/unidad_model.dart';
 
+// 🔥 IMPORTAMOS TU EMPLOYEE PROVIDER PARA PODER CONTAR A LAS PERSONAS
+import '../../config/provider/employee_provider.dart';
+
 class UnidadDetailsDialog extends StatefulWidget {
   final UnidadModel unidad;
 
@@ -18,6 +21,10 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
   Widget build(BuildContext context) {
     final provider = context.watch<UnidadesProvider>();
     final cargos = provider.getCargosPorUnidad(widget.unidad.id);
+
+    // 🔥 TRAEMOS A TODOS LOS EMPLEADOS REGISTRADOS EN EL SISTEMA
+    final employeeProvider = context.watch<EmployeeProvider>();
+    final allEmployees = employeeProvider.allEmployees;
 
     final colorEstado = widget.unidad.estado ? Colors.green : Colors.redAccent;
     final textoEstado = widget.unidad.estado ? "ACTIVO" : "INACTIVO";
@@ -220,9 +227,7 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                           backgroundColor: Colors.transparent,
                           builder: (context) {
                             return Center(
-                              child: AddCargoSheet(
-                                unidadId: widget.unidad.id,
-                              ), // 🔥 PASAMOS EL ID CORRECTAMENTE
+                              child: AddCargoSheet(unidadId: widget.unidad.id),
                             );
                           },
                         );
@@ -316,6 +321,15 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                               ),
                               itemBuilder: (context, index) {
                                 final cargo = cargos[index];
+
+                                // 🔥 LA MAGIA: Contamos cuántos empleados de esta unidad tienen este cargo exacto
+                                final cantidadPersonas = allEmployees.where((
+                                  emp,
+                                ) {
+                                  return emp.unidad == widget.unidad.nombre &&
+                                      emp.cargo == cargo.nombre;
+                                }).length;
+
                                 return Container(
                                   color: Colors.white,
                                   padding: const EdgeInsets.symmetric(
@@ -365,16 +379,25 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                                               vertical: 4,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: Colors.grey.shade100,
+                                              color: cantidadPersonas > 0
+                                                  ? Colors
+                                                        .blue
+                                                        .shade50 // Azulito si hay gente
+                                                  : Colors
+                                                        .grey
+                                                        .shade100, // Gris si está en 0
                                               borderRadius:
                                                   BorderRadius.circular(10),
                                             ),
-                                            child: const Text(
-                                              "-",
+                                            // 🔥 AQUI MOSTRAMOS LA CANTIDAD CALCULADA
+                                            child: Text(
+                                              cantidadPersonas.toString(),
                                               style: TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 12,
-                                                color: Colors.grey,
+                                                color: cantidadPersonas > 0
+                                                    ? Colors.blue.shade700
+                                                    : Colors.grey,
                                               ),
                                             ),
                                           ),

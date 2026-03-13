@@ -5,7 +5,7 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter/foundation.dart'; // <--- IMPORTANTE PARA USAR kIsWeb
+import 'package:flutter/foundation.dart';
 import '../../config/models/selection_models.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -24,7 +24,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<RegisterProvider>().fetchUnidadesYCargos(); // <--- NUEVO
+      context.read<RegisterProvider>().fetchUnidadesYCargos();
     });
   }
 
@@ -48,7 +48,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      context.pop(); // Salir de la pantalla si está en el paso 1
+      context.pop();
     }
   }
 
@@ -60,40 +60,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final XFile? pickedFile = await picker.pickImage(source: source);
 
     if (pickedFile != null) {
-      // 1. Abrir el editor de recorte
       CroppedFile? croppedFile = await ImageCropper().cropImage(
         sourcePath: pickedFile.path,
-        // Bloqueamos la proporción a 3:4 (Formato Credencial/Retrato)
         aspectRatio: const CropAspectRatio(ratioX: 3, ratioY: 4),
         uiSettings: [
-          // Configuración para WEB (Móvil desde el navegador)
-          WebUiSettings(
-            context: context,
-            presentStyle: WebPresentStyle
-                .page, // <--- EL TRUCO ESTÁ AQUÍ (Cambiamos dialog por page)
-          ),
-          // Configuración para ANDROID (Si instalas la app después)
+          WebUiSettings(context: context, presentStyle: WebPresentStyle.page),
           AndroidUiSettings(
             toolbarTitle: 'Ajustar Foto para Credencial',
             toolbarColor: const Color(0xFF1E2B5E),
             toolbarWidgetColor: Colors.white,
             initAspectRatio: CropAspectRatioPreset.ratio3x2,
-            lockAspectRatio: true, // Obliga a que sea 3:4
+            lockAspectRatio: true,
             hideBottomControls: false,
           ),
-          // Configuración para iOS (Si instalas la app en iPhone)
           IOSUiSettings(title: 'Ajustar Foto', aspectRatioLockEnabled: true),
         ],
       );
 
-      // 2. Si el usuario recortó y aceptó, subimos la imagen final
       if (croppedFile != null) {
         await provider.uploadImage(XFile(croppedFile.path));
       }
     }
   }
 
-  // Títulos dinámicos según el paso
   final List<Map<String, String>> _headers = [
     {
       "title": "Foto del Funcionario",
@@ -170,11 +159,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: List.generate(4, (index) {
                     Color color;
                     if (index < provider.currentPage) {
-                      color = const Color(0xFF4CAF50); // Verde (Completado)
+                      color = const Color(0xFF4CAF50);
                     } else if (index == provider.currentPage) {
-                      color = const Color(0xFFFFD54F); // Amarillo (Actual)
+                      color = const Color(0xFFFFD54F);
                     } else {
-                      color = Colors.white.withOpacity(0.2); // Gris (Pendiente)
+                      color = Colors.white.withOpacity(0.2);
                     }
                     return Expanded(
                       child: Container(
@@ -202,8 +191,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               child: PageView(
                 controller: _pageController,
-                physics:
-                    const NeverScrollableScrollPhysics(), // Bloquea el swipe manual
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
                   _buildStep1(provider),
                   _buildStep2(provider),
@@ -222,7 +210,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // PASO 1: FOTO DEL FUNCIONARIO
   // ==========================================
   Widget _buildStep1(RegisterProvider provider) {
-    // CAMBIO 1: Usamos SingleChildScrollView en lugar de Padding estático
     return SingleChildScrollView(
       padding: const EdgeInsets.all(30.0),
       child: Column(
@@ -244,7 +231,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 child: provider.imageFile != null
-                    // CAMBIO 2: Solución para la web vs Nativo
                     ? ClipOval(
                         child: kIsWeb
                             ? Image.network(
@@ -304,7 +290,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
-          // CAMBIO 3: Quitamos el Spacer() y ponemos un espacio fijo
           const SizedBox(height: 40),
           _buildPrimaryButton(
             icon: Icons.upload_file,
@@ -379,12 +364,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Icons.person_outline,
               (v) => provider.materno = v,
             ),
+
+            // 🔥 AQUÍ ESTÁ LA MEJORA PARA EL CARNET DE IDENTIDAD
             _buildInputField(
               "Cédula de Identidad",
               "Ej. 1234567",
               Icons.badge_outlined,
               (v) => provider.ci = v,
+              customValidator: (v) {
+                if (v == null || v.isEmpty) return 'Requerido';
+                if (v.contains(' ')) return 'No se permiten espacios';
+                return null;
+              },
             ),
+
             _buildInputField(
               "Número de Teléfono",
               "Ej. 74312716",
@@ -408,11 +401,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // ==========================================
   // PASO 3: UNIDAD Y CARGO
   // ==========================================
-  // ==========================================
-  // PASO 3: UNIDAD Y CARGO (ACTUALIZADO)
-  // ==========================================
   Widget _buildStep3(RegisterProvider provider) {
-    // Mostrar loading mientras carga la API
     if (provider.isLoadingData) {
       return const Center(
         child: CircularProgressIndicator(color: Colors.amber),
@@ -443,9 +432,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             onChanged: (val) {
               setState(() {
                 provider.selectedUnidad = val;
-                provider.selectedCargo = null; // Reiniciar cargo
-                provider.selectedCircunscripcion =
-                    null; // Reiniciar circunscripción
+                provider.selectedCargo = null;
+                provider.selectedCircunscripcion = null;
               });
             },
           ),
@@ -464,15 +452,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             decoration: _dropdownDecoration(Icons.work_outline),
             hint: const Text("Seleccione un cargo"),
             value: provider.selectedCargo,
-            // Aquí consumimos la lista filtrada mágicamente por el provider
             items: provider.availableCargos
                 .map((c) => DropdownMenuItem(value: c, child: Text(c.nombre)))
                 .toList(),
             onChanged: (val) {
               setState(() {
                 provider.selectedCargo = val;
-                provider.selectedCircunscripcion =
-                    null; // Reiniciar circunscripción si cambia de cargo
+                provider.selectedCircunscripcion = null;
               });
             },
           ),
@@ -487,9 +473,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
 
-          // ==========================================
-          // APARICIÓN MÁGICA DE CIRCUNSCRIPCIÓN
-          // ==========================================
           if (provider.isNotarioSelected) ...[
             const SizedBox(height: 25),
             Container(
@@ -561,7 +544,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const SizedBox(height: 30),
 
           _buildNextButton("Siguiente", () {
-            // Lógica de validación dinámica
             bool isValid =
                 provider.selectedUnidad != null &&
                 provider.selectedCargo != null;
@@ -613,10 +595,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       "ej. juan@institucion.gob",
                       Icons.email_outlined,
                     ),
-                    onSaved: (v) => provider.correo = v!,
-                    validator: (v) => v!.isEmpty || !v.contains('@')
-                        ? 'Correo inválido'
-                        : null,
+                    // Eliminamos espacios sobrantes de forma automática por si acaso
+                    onSaved: (v) => provider.correo = v!.trim(),
+
+                    // 🔥 AQUÍ ESTÁ LA MEJORA PARA EL CORREO ELECTRÓNICO
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Correo requerido';
+                      if (v.contains(' ')) return 'No se permiten espacios';
+                      if (!v.contains('@')) return 'Correo inválido';
+                      return null;
+                    },
                   ),
                 ),
                 TextButton(
@@ -668,7 +656,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            // Input de código estilo PIN simple
             TextFormField(
               textAlign: TextAlign.center,
               style: const TextStyle(
@@ -720,7 +707,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 if (provider.codigoVerificacion.length == 6) {
                   bool success = await provider.registrarPersonal();
                   if (success && context.mounted) {
-                    // Llamamos a nuestro nuevo diálogo de éxito
                     _mostrarDialogoExito(context, provider);
                   }
                 } else {
@@ -744,7 +730,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _mostrarDialogoExito(BuildContext context, RegisterProvider provider) {
     showDialog(
       context: context,
-      barrierDismissible: false, // Obliga al usuario a presionar "Terminar"
+      barrierDismissible: false,
       builder: (BuildContext ctx) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
@@ -785,17 +771,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     elevation: 0,
                   ),
                   onPressed: () {
-                    // 1. Cerramos el diálogo flotante
                     Navigator.of(ctx).pop();
-
-                    // 2. Limpiamos todas las variables de la memoria
                     provider.resetForm();
-
-                    // 3. Limpiamos visualmente los campos de texto
                     _formKeyStep2.currentState?.reset();
                     _formKeyStep4.currentState?.reset();
-
-                    // 4. Movemos la pantalla de vuelta al Paso 1
                     _pageController.jumpToPage(0);
                   },
                   child: const Text(
@@ -810,14 +789,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       },
     );
   }
+
   // --- WIDGETS DE APOYO (Para no repetir código) ---
 
+  // 🔥 Modificamos esta función para que acepte un validador personalizado
   Widget _buildInputField(
     String label,
     String hint,
     IconData icon,
     Function(String) onSaved, {
     bool isNumber = false,
+    String? Function(String?)? customValidator, // <--- PROPIEDAD AGREGADA
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -836,8 +818,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           TextFormField(
             keyboardType: isNumber ? TextInputType.number : TextInputType.text,
             decoration: _inputDecoration(hint, icon),
-            validator: (v) => v!.isEmpty ? 'Requerido' : null,
-            onSaved: (v) => onSaved(v!),
+            // Utilizamos el validador personalizado si existe, si no el normal
+            validator:
+                customValidator ?? (v) => v!.isEmpty ? 'Requerido' : null,
+            // Guardamos con trim() para eliminar espacios finales/iniciales accidentales
+            onSaved: (v) => onSaved(v!.trim()),
           ),
         ],
       ),
@@ -868,8 +853,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           TextFormField(
             keyboardType: isNumber ? TextInputType.number : TextInputType.text,
             decoration: _inputDecoration(hint, icon),
-
-            onSaved: (v) => onSaved(v!),
+            // Igualmente usamos trim() para limpiar la data no requerida
+            onSaved: (v) => onSaved(v!.trim()),
           ),
         ],
       ),
@@ -920,7 +905,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFFFD54F), // Amarillo
+          backgroundColor: const Color(0xFFFFD54F),
           foregroundColor: Colors.black87,
           padding: const EdgeInsets.symmetric(vertical: 18),
           shape: RoundedRectangleBorder(

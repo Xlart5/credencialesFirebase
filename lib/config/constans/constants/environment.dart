@@ -1,7 +1,7 @@
 class Environment {
   // Tu URL base
   static const String apiUrl =
-      'http://api.j0o88kckww4cos8cgog80wsw.158.220.117.118.sslip.io';
+      'https://api.j0o88kckww4cos8cgog80wsw.158.220.117.118.sslip.io';
 
   // 🔥 Variable viva en memoria (se actualiza al iniciar sesión)
   static String? token;

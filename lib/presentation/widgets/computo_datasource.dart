@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/models/employee_model.dart';
+import '../../config/provider/employee_provider.dart';
 
 class ComputoItem {
   final Employee empleado;
@@ -17,18 +19,84 @@ class ComputoItem {
 
 class ComputoDataSource extends DataTableSource {
   final BuildContext context;
-  final List<ComputoItem> _allItems; // Guardamos TODOS los registros aquí
-  final VoidCallback
-  onStateChanged; // Avisa a la pantalla para actualizar las tarjetas
+  final List<ComputoItem> _allItems;
+  final VoidCallback onStateChanged;
 
-  bool _showOnlyPending = false; // Estado del filtro
+  bool _showOnlyPending = false;
+  String _searchQuery = '';
+  String? _selectedUnidad;
+  bool? _selectedAcceso;
 
   ComputoDataSource(this.context, this._allItems, this.onStateChanged);
 
-  // --- FILTRO ---
-  void setFilter(bool showOnlyPending) {
+  void updateData(List<Employee> newEmployees) {
+    bool isDifferent = false;
+    if (newEmployees.length != _allItems.length) {
+      isDifferent = true;
+    } else {
+      for (int i = 0; i < newEmployees.length; i++) {
+        if (newEmployees[i].id != _allItems[i].empleado.id ||
+            newEmployees[i].accesoComputo != _allItems[i].tieneAcceso) {
+          isDifferent = true;
+          break;
+        }
+      }
+    }
+
+    if (isDifferent) {
+      final selectedIds = _allItems
+          .where((i) => i.isSelected)
+          .map((i) => i.empleado.id)
+          .toSet();
+      _allItems.clear();
+
+      for (var emp in newEmployees) {
+        _allItems.add(
+          ComputoItem(
+            empleado: emp,
+            celular: emp.celular,
+            tieneAcceso: emp.accesoComputo,
+            isSelected: selectedIds.contains(emp.id),
+          ),
+        );
+      }
+
+      Future.microtask(() {
+        notifyListeners();
+        onStateChanged();
+      });
+    }
+  }
+
+  void setPendingFilter(bool showOnlyPending) {
     _showOnlyPending = showOnlyPending;
-    // Limpiamos las selecciones al cambiar de filtro para evitar errores
+    _clearSelections();
+  }
+
+  void setSearchQuery(String query) {
+    _searchQuery = query.toLowerCase();
+    _clearSelections();
+  }
+
+  void setUnidadFilter(String? unidad) {
+    _selectedUnidad = unidad;
+    _clearSelections();
+  }
+
+  void setAccesoFilter(bool? acceso) {
+    _selectedAcceso = acceso;
+    _clearSelections();
+  }
+
+  void clearAllFilters() {
+    _searchQuery = '';
+    _selectedUnidad = null;
+    _selectedAcceso = null;
+    _showOnlyPending = false;
+    _clearSelections();
+  }
+
+  void _clearSelections() {
     for (var item in _allItems) {
       item.isSelected = false;
     }
@@ -36,42 +104,60 @@ class ComputoDataSource extends DataTableSource {
     onStateChanged();
   }
 
-  // Obtenemos solo los ítems que se deben mostrar según el filtro
   List<ComputoItem> get items {
-    if (_showOnlyPending) {
-      return _allItems.where((e) => !e.tieneAcceso).toList();
-    }
-    return _allItems;
+    return _allItems.where((item) {
+      final emp = item.empleado;
+      if (_showOnlyPending && item.tieneAcceso) return false;
+      if (_selectedUnidad != null && emp.unidad != _selectedUnidad)
+        return false;
+      if (_selectedAcceso != null && item.tieneAcceso != _selectedAcceso)
+        return false;
+      if (_searchQuery.isNotEmpty) {
+        final matchesName = emp.nombreCompleto.toLowerCase().contains(
+          _searchQuery,
+        );
+        final matchesCI = emp.ci.contains(_searchQuery);
+        if (!matchesName && !matchesCI) return false;
+      }
+      return true;
+    }).toList();
   }
 
-  // --- CONTADORES PARA LAS TARJETAS ---
   int get totalCount => _allItems.length;
   int get conAccesoCount => _allItems.where((e) => e.tieneAcceso).length;
   int get sinAccesoCount => _allItems.where((e) => !e.tieneAcceso).length;
 
-  // --- LÓGICA DE SELECCIÓN ---
   bool get hasSelection => items.any((item) => item.isSelected);
   int get selectedCount => items.where((item) => item.isSelected).length;
 
-  void darAccesoMasivo() {
-    bool changed = false;
-    // Solo damos acceso a los que están visibles en la tabla y seleccionados
-    for (var item in items) {
-      if (item.isSelected) {
+  // 🔥 NUEVO: EJECUTA LA PETICIÓN HTTP MASIVA
+  Future<bool> darAccesoMasivo() async {
+    final seleccionados = items.where((item) => item.isSelected).toList();
+    if (seleccionados.isEmpty) return false;
+
+    // Extraemos solo los IDs para mandarlos al backend
+    final ids = seleccionados.map((i) => i.empleado.id).toList();
+
+    // Llamamos a la API
+    final provider = context.read<EmployeeProvider>();
+    final success = await provider.habilitarComputoMasivo(ids);
+
+    if (success) {
+      // Si la API dice OK, actualizamos visualmente la tabla
+      for (var item in seleccionados) {
         item.tieneAcceso = true;
         item.isSelected = false;
-        changed = true;
       }
-    }
-    if (changed) {
       notifyListeners();
       onStateChanged();
+      return true;
     }
+    return false;
   }
 
   @override
   DataRow? getRow(int index) {
-    final currentItems = items; // Usamos la lista filtrada
+    final currentItems = items;
     if (index >= currentItems.length) return null;
 
     final item = currentItems[index];
@@ -178,10 +264,33 @@ class ComputoDataSource extends DataTableSource {
             activeColor: Colors.teal,
             inactiveTrackColor: Colors.grey.shade300,
             inactiveThumbColor: Colors.white,
-            onChanged: (bool value) {
-              item.tieneAcceso = value;
+            onChanged: (bool newValue) async {
+              // 1. Cambio optimista (rápido visualmente)
+              item.tieneAcceso = newValue;
               notifyListeners();
-              onStateChanged(); // IMPORTANTE: Avisar a la pantalla para actualizar contadores
+              onStateChanged();
+
+              // 2. Petición a la API
+              final provider = context.read<EmployeeProvider>();
+              final success = await provider.cambiarAccesoComputo(
+                emp.id,
+                newValue,
+              );
+
+              // 3. Si falla, revertimos el cambio visual
+              if (!success) {
+                item.tieneAcceso = !newValue; // Regresa al estado anterior
+                notifyListeners();
+                onStateChanged();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Error de conexión. No se pudo cambiar el estado.',
+                    ),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
           ),
         ),
@@ -192,7 +301,7 @@ class ComputoDataSource extends DataTableSource {
   @override
   bool get isRowCountApproximate => false;
   @override
-  int get rowCount => items.length; // Filas dependen del filtro
+  int get rowCount => items.length;
   @override
   int get selectedRowCount => selectedCount;
 }

@@ -1,3 +1,4 @@
+import 'package:carnetizacion/config/provider/externos_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -54,6 +55,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => EmployeeProvider()),
         ChangeNotifierProvider(create: (_) => RegisterProvider()),
         ChangeNotifierProvider(create: (_) => UnidadesProvider()),
+        ChangeNotifierProvider(create: (context) => ExternosProvider()),
       ],
       child: MaterialApp.router(
         title: 'Control Central TED',

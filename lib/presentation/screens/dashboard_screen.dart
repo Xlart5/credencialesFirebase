@@ -1,7 +1,6 @@
 import 'package:carnetizacion/config/helpers/pdf_generator_service.dart';
-import 'package:carnetizacion/config/helpers/certificate_pdf_service.dart'; // 🔥 NUEVO IMPORT
 import 'package:carnetizacion/config/provider/employee_provider.dart';
-import 'package:carnetizacion/config/models/employee_model.dart'; // 🔥 NUEVO IMPORT
+import 'package:carnetizacion/config/models/employee_model.dart';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
@@ -20,7 +19,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // CLAVE PARA PODER ABRIR EL DRAWER
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
@@ -34,38 +32,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EmployeeProvider>();
-
-    // 🔥 1. CAPTURAMOS LOS SELECCIONADOS
     final seleccionados = provider.selectedForPrint.toList();
 
-    // 🔥 2. CONDICIONES MÁGICAS (NUEVO FLUJO SIMPLIFICADO A SPRING BOOT)
+    // LÓGICA DE BOTONES FLOTANTES
+    // 🔥 LÓGICA DE BOTONES FLOTANTES (AHORA A PRUEBA DE BALAS)
+    // Usamos .contains para evitar problemas si el backend manda espacios o palabras diferentes
     final bool todosImpresos =
         seleccionados.isNotEmpty &&
         seleccionados.every(
-          (emp) => emp.estadoActual.toUpperCase() == 'CREDENCIAL IMPRESO',
+          (emp) => emp.estadoActual.toUpperCase().contains('IMPRESO'),
         );
+
     final bool todosActivos =
         seleccionados.isNotEmpty &&
         seleccionados.every(
-          (emp) => emp.estadoActual.toUpperCase() == 'PERSONA ACTIVA',
-        );
-    final bool todosFinalizados =
-        seleccionados.isNotEmpty &&
-        seleccionados.every(
-          (emp) => emp.estadoActual.toUpperCase() == 'CONTRATO FINALIZADO',
+          (emp) => emp.estadoActual.toUpperCase().contains('ACTIV'),
         );
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
 
-      // 🔥 BOTONES FLOTANTES INTELIGENTES
       floatingActionButton: seleccionados.isEmpty
           ? null
           : Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // 1. Botón Base: Imprimir Lote
+                // 1. Botón Amarillo: Imprimir Lote
                 FloatingActionButton.extended(
                   heroTag: 'btnImprimirLote',
                   backgroundColor: AppColors.primaryYellow,
@@ -78,24 +71,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   onPressed: () async {
-                    // Generamos el PDF con todos los seleccionados
                     final pdfBytes =
                         await PdfGeneratorService.generateCredentialsPdf(
                           seleccionados,
                         );
-
                     await Printing.layoutPdf(
                       onLayout: (format) async => pdfBytes,
                       name:
                           'Lote_Personalizado_${DateTime.now().millisecondsSinceEpoch}.pdf',
                     );
-
-                    // Limpiamos la selección después de imprimir
                     provider.clearSelection();
                   },
                 ),
 
-                // 2. BOTÓN AZUL: PASAR A ACTIVO
+                // 2. Botón Azul: Habilitar Personal (Entregar plástico)
                 if (todosImpresos) ...[
                   const SizedBox(width: 15),
                   FloatingActionButton.extended(
@@ -114,7 +103,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ],
 
-                // 3. BOTÓN NARANJA: DEVOLVER CREDENCIAL Y FINALIZAR (El 2x1)
+                // 🔥 3. Botón Naranja: Recibir Credencial (Devolución)
                 if (todosActivos) ...[
                   const SizedBox(width: 15),
                   FloatingActionButton.extended(
@@ -125,52 +114,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.white,
                     ),
                     label: const Text(
-                      "Recibir Credencial y Finalizar",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    onPressed: () => _procesarFinalizacionContrato(
-                      context,
-                      seleccionados,
-                      provider,
-                    ),
-                  ),
-                ],
-
-                // 4. BOTÓN VERDE: IMPRIMIR CERTIFICADOS
-                if (todosFinalizados) ...[
-                  const SizedBox(width: 15),
-                  FloatingActionButton.extended(
-                    heroTag: 'btnCertificados',
-                    backgroundColor: Colors.green,
-                    icon: const Icon(
-                      Icons.workspace_premium,
-                      color: Colors.white,
-                    ),
-                    label: const Text(
-                      "Imprimir Certificados",
+                      "Recibir Credencial",
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     onPressed: () =>
-                        _procesarCertificados(context, seleccionados, provider),
+                        _procesarDevolucion(context, seleccionados, provider),
                   ),
                 ],
               ],
             ),
-
       drawer: const SideMenu(),
-
       body: Padding(
         padding: const EdgeInsets.all(30.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- 1. HEADER --- (SIN CAMBIOS)
+            // HEADER
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -220,9 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () {
-                          _scaffoldKey.currentState?.openDrawer();
-                        },
+                        onTap: () => _scaffoldKey.currentState?.openDrawer(),
                         borderRadius: BorderRadius.circular(30),
                         child: Container(
                           padding: const EdgeInsets.only(
@@ -274,10 +234,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 30),
 
-            // --- 2. TARJETAS KPI --- (SIN CAMBIOS)
+            // KPI CARDS
             Row(
               children: [
                 KPICard(
@@ -305,7 +264,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
 
-            // --- 3. TABLA DE DATOS --- (SIN CAMBIOS)
+            // TABLA
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,9 +285,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // =====================================
-  // 🔥 LÓGICA: HABILITAR PERSONAL (Activo)
-  // =====================================
   void _procesarActivacion(
     BuildContext context,
     List<Employee> empleados,
@@ -364,14 +320,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   provider.clearSelection();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("✅ Personal habilitado correctamente."),
+                      content: Text("✅ Personal habilitado."),
                       backgroundColor: Colors.green,
                     ),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("❌ Error al actualizar estado."),
+                      content: Text("❌ Error al actualizar."),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -391,10 +347,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // =====================================
-  // 🔥 LÓGICA: RECIBIR CREDENCIAL Y FINALIZAR
-  // =====================================
-  void _procesarFinalizacionContrato(
+  // 🔥 NUEVO: FUNCIÓN PARA DEVOLVER EL PLÁSTICO
+  void _procesarDevolucion(
     BuildContext context,
     List<Employee> empleados,
     EmployeeProvider provider,
@@ -407,11 +361,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Icon(Icons.assignment_return, color: Colors.orange, size: 28),
             SizedBox(width: 10),
-            Text("¿Recibir y Finalizar?"),
+            Text("¿Recibir Credencial?"),
           ],
         ),
         content: Text(
-          "¿Confirmas que estas ${empleados.length} personas devolvieron su credencial?\n\nEl sistema cerrará su ciclo automáticamente y pasarán a 'CONTRATO FINALIZADO'.",
+          "¿Confirmas que estas ${empleados.length} personas devolvieron su credencial física?\n\nPasarán a estado 'CREDENCIAL DEVUELTO' para poder tramitar su certificado.",
           style: const TextStyle(fontSize: 14),
         ),
         actions: [
@@ -423,7 +377,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             onPressed: () async {
               Navigator.of(ctx).pop();
-              bool success = await provider.marcarContratoFinalizadoMasivo(
+              bool success = await provider.marcarCredencialDevueltaMasivo(
                 empleados,
               );
               if (context.mounted) {
@@ -431,14 +385,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   provider.clearSelection();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("✅ Contratos finalizados correctamente."),
+                      content: Text("✅ Credenciales recibidas."),
                       backgroundColor: Colors.green,
                     ),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("❌ Error al finalizar contratos."),
+                      content: Text("❌ Error al actualizar."),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -446,75 +400,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               }
             },
             child: const Text(
-              "Sí, Confirmar",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =====================================
-  // 🔥 LÓGICA: IMPRIMIR CERTIFICADOS
-  // =====================================
-  void _procesarCertificados(
-    BuildContext context,
-    List<Employee> empleados,
-    EmployeeProvider provider,
-  ) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: const Row(
-          children: [
-            Icon(Icons.workspace_premium, color: Colors.green, size: 28),
-            SizedBox(width: 10),
-            Text("Imprimir Certificados"),
-          ],
-        ),
-        content: Text(
-          "Las ${empleados.length} personas seleccionadas ya tienen su contrato finalizado.\n\n¿Proceder a generar el archivo PDF con sus certificados?",
-          style: const TextStyle(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-
-              // Llamamos al archivo de certificados que creamos antes
-              final pdfBytes =
-                  await CertificatePdfService.generateCertificadosPdf(
-                    empleados,
-                  );
-
-              await Printing.layoutPdf(
-                onLayout: (format) async => pdfBytes,
-                name:
-                    'Certificados_TED_${DateTime.now().millisecondsSinceEpoch}.pdf',
-              );
-
-              if (context.mounted) {
-                provider.clearSelection();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("🖨️ Documento de Certificados generado."),
-                    backgroundColor: Colors.blue,
-                  ),
-                );
-              }
-            },
-            child: const Text(
-              "Generar PDF",
+              "Sí, Confirmar Devolución",
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,

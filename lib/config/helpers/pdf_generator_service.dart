@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart'; // 🔥 OBLIGATORIO PARA EL COMPUTE
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -159,9 +160,12 @@ class PdfGeneratorService {
   ) {
     // LA MAGIA CONDICIONAL
     final String cargoMinusculas = emp.cargo.toString().toLowerCase();
-    final bool esNotario = cargoMinusculas.contains('notari');
 
-    // Validación de seguridad para el QR (Evita crasheos si la API manda vacío)
+    // 🔥 AQUÍ AGREGAMOS LA VALIDACIÓN PARA EL JUEZ
+    final bool esNotario = cargoMinusculas.contains('notari');
+    final bool esJuez = cargoMinusculas.contains('juez');
+
+    // Validación de seguridad para el QR
     final String qrData = emp.qrUrl.isNotEmpty ? emp.qrUrl : "SIN_QR_ASIGNADO";
 
     return pw.Container(
@@ -176,7 +180,7 @@ class PdfGeneratorService {
           // 1. Fondo
           pw.Positioned.fill(child: pw.Image(bg, fit: pw.BoxFit.fill)),
 
-          // 2. QR o CIRCUNSCRIPCIÓN
+          // 2. LÓGICA DE LA ESQUINA (QR vs Circunscripción vs Juez Electoral)
           pw.Positioned(
             top: 40,
             left: 30,
@@ -201,15 +205,46 @@ class PdfGeneratorService {
                       ],
                     ),
                   )
-                // SI NO ES NOTARIO: Mostramos el QR usando la librería nativa
+                : esJuez
+                // 🔥 SI ES JUEZ: Mostramos texto en vez del QR
+                ? pw.Container(
+                    width: 80, // Mismo tamaño que ocuparía el QR
+                    height: 60,
+                    alignment: pw.Alignment.center,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      mainAxisAlignment: pw.MainAxisAlignment.center,
+                      children: [
+                        pw.Text(
+                          "JUEZ",
+                          textAlign: pw.TextAlign.center,
+                          style: pw.TextStyle(
+                            fontSize: 16, // Tamaño ajustable
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.black,
+                          ),
+                        ),
+                        pw.SizedBox(height: 5),
+                        pw.Text(
+                          "ELECTORAL",
+                          textAlign: pw.TextAlign.center,
+                          style: pw.TextStyle(
+                            fontSize: 12, // Tamaño ajustable
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                // SI ES OTRO CARGO: Mostramos el QR normal
                 : pw.Container(
                     width: 60,
                     height: 60,
                     color: PdfColors.white,
                     child: pw.BarcodeWidget(
                       barcode: pw.Barcode.qrCode(),
-                      data:
-                          qrData, // Aquí entra tu texto "QR-123456-..." de la BD
+                      data: qrData,
                       width: 60,
                       height: 60,
                       color: PdfColors.black,

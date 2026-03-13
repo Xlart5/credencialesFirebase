@@ -4,47 +4,49 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
-// Asegúrate de que esta ruta a tu modelo Employee es correcta
 import '../models/employee_model.dart';
 
+// 🔥 CLASE CLAVE: Encapsula al empleado junto con las fechas de su contrato
+class CertificadoData {
+  final Employee employee;
+  final String fechaInicio;
+  final String fechaFin;
+
+  CertificadoData({
+    required this.employee,
+    required this.fechaInicio,
+    required this.fechaFin,
+  });
+}
+
 class CertificatePdfService {
-  // ==========================================
-  // 🔥 FUNCIÓN: GENERAR CERTIFICADOS
-  // ==========================================
+  // 🔥 RECIBE LA LISTA DE DATOS ENCAPSULADOS
   static Future<Uint8List> generateCertificadosPdf(
-    List<Employee> empleados,
+    List<CertificadoData> listaDatos,
   ) async {
     final pdf = pw.Document();
-
-    // Inicializamos el idioma español para las fechas
     await initializeDateFormatting('es', null);
 
-    // 🔥 PRE-CARGAR LOGO DE TED DESDE URL
     final tedLogoUrl = 'https://i.imgur.com/s9ukc28.png';
     final tedLogoResponse = await http.get(Uri.parse(tedLogoUrl));
     final tedLogoImage = pw.MemoryImage(tedLogoResponse.bodyBytes);
 
-    for (var emp in empleados) {
+    for (var data in listaDatos) {
+      final emp = data.employee;
+
       pdf.addPage(
         pw.Page(
-          // 📄 Formato Vertical (Letter o A4) para el nuevo diseño
           pageFormat: PdfPageFormat.letter,
           margin: const pw.EdgeInsets.all(50),
           build: (pw.Context context) {
-            // 📅 Fecha de emisión del certificado (HOY)
             final fechaHoy = DateFormat(
               'dd \'de\' MMMM \'de\' yyyy',
               'es',
             ).format(DateTime.now());
 
-            // Variables de contrato (puedes reemplazarlas por emp.fechaInicio si lo agregas a tu BD)
-            final String fechaInicioContrato = "01 de enero de 2026";
-            final String fechaFinContrato = "28 de febrero de 2026";
-
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
-                // --- 1. LOGO DE TED EN PARTE SUPERIOR ---
                 pw.Center(child: pw.Image(tedLogoImage, width: 150)),
                 pw.SizedBox(height: 10),
                 pw.Text(
@@ -52,10 +54,7 @@ class CertificatePdfService {
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
                 ),
-
                 pw.SizedBox(height: 40),
-
-                // --- 2. PREÁMBULO DEL RESPONSABLE (all caps y bold) ---
                 pw.Text(
                   "EL SUSCRITO RESPONSABLE DE POA Y RECURSOS HUMANOS DEL O.E.P. - TRIBUNAL ELECTORAL DPTAL DE COCHABAMBA, A PETICIÓN ESCRITA DE LA PERSONA INTERESADA.",
                   textAlign: pw.TextAlign.center,
@@ -65,10 +64,7 @@ class CertificatePdfService {
                     lineSpacing: 4,
                   ),
                 ),
-
                 pw.SizedBox(height: 50),
-
-                // --- 3. LA PALABRA "CERTIFICA:" (bold y left-aligned) ---
                 pw.Container(
                   alignment: pw.Alignment.centerLeft,
                   child: pw.Text(
@@ -79,20 +75,14 @@ class CertificatePdfService {
                     ),
                   ),
                 ),
-
                 pw.SizedBox(height: 30),
-
-                // --- 4. CUERPO DEL TEXTO (El párrafo oficial justificado) ---
                 pw.RichText(
-                  textAlign: pw
-                      .TextAlign
-                      .justify, // Texto alineado a ambos lados (oficial)
+                  textAlign: pw.TextAlign.justify,
                   text: pw.TextSpan(
                     style: const pw.TextStyle(
                       fontSize: 15,
                       color: PdfColors.black,
-                      lineSpacing:
-                          10, // Interlineado amplio para lectura oficial
+                      lineSpacing: 10,
                     ),
                     children: [
                       const pw.TextSpan(text: "Que, el(la) Sr.(a) "),
@@ -114,17 +104,20 @@ class CertificatePdfService {
                       ),
                       const pw.TextSpan(
                         text:
-                            ", en el Tribunal Electoral Departamental de Cochabamba, durante el proceso electoral “ELECCIONES DE AUTORIDADES POLÍTICAS DEPARTAMENTALES, REGIONALES Y MUNICIPALES (ELECCIONES SUBNACIONALES 2026)”, del ",
+                            ", en el Tribunal Electoral Departamental de Cochabamba, durante el proceso electoral ELECCIONES DE AUTORIDADES POLÍTICAS DEPARTAMENTALES, REGIONALES Y MUNICIPALES (ELECCIONES SUBNACIONALES 2026), del ",
                       ),
+
+                      // 🔥 AQUÍ SE IMPRIMEN LAS FECHAS DEL OBJETO
                       pw.TextSpan(
-                        text: fechaInicioContrato,
+                        text: data.fechaInicio,
                         style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                       ),
                       const pw.TextSpan(text: " al "),
                       pw.TextSpan(
-                        text: fechaFinContrato,
+                        text: data.fechaFin,
                         style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                       ),
+
                       const pw.TextSpan(
                         text:
                             ", demostrando durante su permanencia responsabilidad, honestidad y dedicación en las labores que le fueron encomendadas.",
@@ -132,19 +125,13 @@ class CertificatePdfService {
                     ],
                   ),
                 ),
-
                 pw.SizedBox(height: 50),
-
-                // --- 5. CONCLUSIÓN ---
                 pw.Text(
                   "Es cuanto se certifica en honor a la verdad y para fines consiguientes de la persona interesada.",
                   textAlign: pw.TextAlign.center,
                   style: const pw.TextStyle(fontSize: 14),
                 ),
-
                 pw.SizedBox(height: 80),
-
-                // --- 6. FECHA DE EMISIÓN ---
                 pw.Container(
                   alignment: pw.Alignment.centerRight,
                   child: pw.Text(
@@ -158,7 +145,6 @@ class CertificatePdfService {
         ),
       );
     }
-
     return pdf.save();
   }
 }

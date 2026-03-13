@@ -171,35 +171,26 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
 
     setState(() => _isSaving = true);
 
-    // Recuperamos los nombres en texto para actualizar la tabla visualmente al instante
-    final nombreUnidad = _listaUnidades.firstWhere(
-      (u) => u['id'] == _selectedUnidadId,
-    )['nombre'];
-    final nombreCargo = _listaCargos.firstWhere(
-      (c) => c['id'] == _selectedCargoId,
-    )['nombre'];
-
-    // 🔥 EL JSON EXACTO QUE EXIGE TU SPRING BOOT
+    // 🔥 ARMAMOS EL MAPA EXACTAMENTE COMO LO PIDE TU PROVIDER/SWAGGER
     final nuevosDatos = {
       "nombre": _nombreCtrl.text.trim(),
       "apellidoPaterno": _paternoCtrl.text.trim(),
       "apellidoMaterno": _maternoCtrl.text.trim(),
-      "carnetIdentidad": _ciCtrl.text.trim(),
-      "correo": widget.employee.correo ?? "sin correo",
+      "ci": _ciCtrl.text.trim(),
+      "correo": widget.employee.correo ?? "sin.correo@ejemplo.com",
       "celular": _celularCtrl.text.trim(),
       "accesoComputo": widget.employee.accesoComputo,
-      "nroCircunscripcion": widget.employee.Circu, // Mantenemos el que ya tenía
+      "circunscripcion": widget.employee.Circu,
       "tipo": "EVENTUAL",
-      "imagenId": widget.employee.ImageId, // 🔥 Requerido por el backend
-      "cargoID": _selectedCargoId, // 🔥 OJO: Debe ser 'ID' mayúscula
-      // 🔥 Mandamos 1 para cumplir la regla "obligatoria"
-      // 🔥 Confirmado por tu equipo que acepta null
-      // Estos dos los mandamos para que nuestro Provider actualice la vista local
-      "unidad": nombreUnidad,
-      "cargo": nombreCargo,
+      "imagenId": widget.employee.ImageId,
+
+      // 🔥 EL DATO CLAVE: El ID numérico del cargo que el backend exige
+      "cargoID": _selectedCargoId,
     };
 
     final provider = context.read<EmployeeProvider>();
+
+    // Llamamos al Provider (este ya tiene la lógica de limpiar caché y recargar lista)
     bool success = await provider.updateEmployee(
       widget.employee.id,
       nuevosDatos,
@@ -209,7 +200,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
       setState(() => _isSaving = false);
 
       if (success) {
-        Navigator.pop(context); // Solo cerramos si tuvo éxito
+        Navigator.pop(context); // Cerramos el modal
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Datos actualizados correctamente."),
@@ -219,7 +210,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Error al guardar los cambios. Revisa la conexión."),
+            content: Text("Error al guardar. Revisa la conexión."),
             backgroundColor: Colors.red,
           ),
         );

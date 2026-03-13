@@ -10,8 +10,8 @@ class Employee {
   final String celular;
   final bool accesoComputo;
   final String estadoActual;
-  final String cargo; // <-- VUELVE A SER TEXTO
-  final String unidad; // <-- VUELVE A SER TEXTO
+  final String cargo;
+  final String unidad;
   final int ImageId;
   final String photoUrl;
   final String qrUrl;
@@ -40,13 +40,17 @@ class Employee {
   String get ci => carnetIdentidad;
   int get estado => estadoActual.toUpperCase() == "PERSONAL REGISTRADO" ? 0 : 1;
 
-  // TU LÓGICA DE COLORES
+  // LÓGICA DE COLORES
   Color get colorEstado {
     final estadoUpper = estadoActual.toUpperCase();
     if (estadoUpper == "PERSONAL REGISTRADO") {
       return Colors.redAccent;
     } else if (estadoUpper.contains("RENUNCIA")) {
       return Colors.orangeAccent;
+    } else if (estadoUpper == "CREDENCIAL DEVUELTO") {
+      return Colors.blueAccent;
+    } else if (estadoUpper == "CONTRATO TERMINADO") {
+      return Colors.grey;
     } else {
       return Colors.greenAccent.shade700;
     }
@@ -63,17 +67,37 @@ class Employee {
       celular: json['celular'] ?? '',
       accesoComputo: json['accesoComputo'] ?? false,
       estadoActual: json['estadoActual'] ?? 'DESCONOCIDO',
-      // Leemos el texto tal cual viene del JSON
       cargo: json['cargo'] ?? 'Sin Cargo',
       unidad: json['unidad'] ?? 'Sin Unidad',
-      // Si te fijas en tu foto, la API te manda la URL en el campo "imagen"
-      photoUrl: json['imagen'],
-      qrUrl: json['qr'],
-      Circu: json['nroCircunscripcion'],
-      ImageId: json['imagenId'],
+      photoUrl: json['imagen'] ?? '',
+      qrUrl: json['qr'] ?? '',
+      Circu: json['nroCircunscripcion'] ?? 'Sin Circunscripción',
+      ImageId: json['imagenId'] ?? 0,
     );
   }
 
+  // 🔥 FUNCIÓN PARA LA CACHÉ: Permite guardar la lista fusionada en la memoria
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'nombre': nombre,
+      'apellidoPaterno': apellidoPaterno,
+      'apellidoMaterno': apellidoMaterno,
+      'carnetIdentidad': carnetIdentidad,
+      'correo': correo,
+      'celular': celular,
+      'accesoComputo': accesoComputo,
+      'estadoActual': estadoActual,
+      'cargo': cargo,
+      'unidad': unidad,
+      'imagen': photoUrl,
+      'qr': qrUrl,
+      'nroCircunscripcion': Circu,
+      'imagenId': ImageId,
+    };
+  }
+
+  // 🔥 COPYWITH INTACTO
   Employee copyWith({
     int? id,
     String? nombre,
@@ -108,4 +132,14 @@ class Employee {
       ImageId: this.ImageId,
     );
   }
+
+  // 🔥 ESTO ES VITAL PARA QUE LOS CHECKBOXES Y LA SELECCIÓN FUNCIONEN PERFECTO
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Employee && other.id == id; // Compara siempre por ID
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }
