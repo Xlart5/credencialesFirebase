@@ -2,13 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:flutter/foundation.dart'; // Para kIsWeb
 
 import '../../config/constans/constants/environment.dart';
 import '../../config/models/employee_model.dart';
 import '../../config/provider/employee_provider.dart';
-import '../../config/theme/app_colors.dart';
 
-// Función pública para llamar al panel desde la tabla
 void showEditEmployeeSheet(BuildContext context, Employee emp) {
   showModalBottomSheet(
     context: context,
@@ -35,10 +36,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
   late TextEditingController _ciCtrl;
   late TextEditingController _celularCtrl;
 
-  // ==========================================
-  // VARIABLES PARA LA API
-  // ==========================================
-  final String _baseUrl = Environment.apiUrl; // URL de tu Spring Boot
+  final String _baseUrl = Environment.apiUrl; 
 
   List<dynamic> _listaUnidades = [];
   List<dynamic> _listaCargos = [];
@@ -47,6 +45,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
   int? _selectedCargoId;
 
   bool _isSaving = false;
+  bool _isUploadingPhoto = false; // Estado para la ruedita de carga de la foto
   bool _isLoadingUnidades = true;
   bool _isLoadingCargos = false;
 
@@ -59,7 +58,6 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
     _ciCtrl = TextEditingController(text: widget.employee.ci);
     _celularCtrl = TextEditingController(text: widget.employee.celular);
 
-    // Iniciamos la descarga de las unidades apenas se abre el panel
     _cargarUnidades();
   }
 
@@ -71,6 +69,97 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
     _ciCtrl.dispose();
     _celularCtrl.dispose();
     super.dispose();
+  }
+
+  // ==========================================
+  // LÓGICA DE FOTO (SELECCIÓN Y SUBIDA)
+  // ==========================================
+  Future<void> _cambiarFotoPerfil() async {
+    final picker = ImagePicker();
+    final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      CroppedFile? croppedFile = await ImageCropper().cropImage(
+        sourcePath: pickedFile.path,
+        aspectRatio: const CropAspectRatio(ratioX: 3, ratioY: 4), // 3:4 para credenciales
+        uiSettings: [
+          WebUiSettings(
+            context: context,
+            presentStyle: WebPresentStyle.page,
+          ),
+          AndroidUiSettings(
+            toolbarTitle: 'Ajustar Foto',
+            toolbarColor: const Color(0xFF1E2B5E),
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.ratio3x2,
+            lockAspectRatio: true,
+          ),
+        ],
+      );
+
+      if (croppedFile != null && mounted) {
+        // Mostramos el diálogo de confirmación
+        _mostrarConfirmacionFoto(XFile(croppedFile.path));
+      }
+    }
+  }
+
+  void _mostrarConfirmacionFoto(XFile nuevaImagen) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirmar Cambio"),
+        content: const Text("¿Está seguro de cambiar la fotografía de perfil de este empleado?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            onPressed: () async {
+              Navigator.pop(ctx); // Cierra el diálogo
+              _subirFotoAlServidor(nuevaImagen); // Ejecuta la subida
+            },
+            child: const Text("Sí, Cambiar", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _subirFotoAlServidor(XFile nuevaImagen) async {
+    setState(() => _isUploadingPhoto = true);
+
+    final provider = context.read<EmployeeProvider>();
+    final success = await provider.actualizarImagenPerfil(
+      widget.employee.id,
+      widget.employee.ImageId,
+      nuevaImagen,
+    );
+
+    if (mounted) {
+      setState(() => _isUploadingPhoto = false);
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Fotografía actualizada con éxito"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Cerramos el panel de edición para que vea la foto nueva en la tabla
+        Navigator.pop(context); 
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Error al subir la fotografía"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   // ==========================================
@@ -91,17 +180,14 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
             _isLoadingUnidades = false;
           });
 
-          // Buscar el ID de la unidad actual del empleado (Comparando textos)
           final currentUnidadStr = widget.employee.unidad.trim().toUpperCase();
           for (var u in _listaUnidades) {
-            if (u['nombre'].toString().trim().toUpperCase() ==
-                currentUnidadStr) {
+            if (u['nombre'].toString().trim().toUpperCase() == currentUnidadStr) {
               _selectedUnidadId = u['id'];
               break;
             }
           }
 
-          // Si encontramos su unidad, descargamos sus cargos inmediatamente
           if (_selectedUnidadId != null) {
             _cargarCargos(_selectedUnidadId!);
           }
@@ -116,12 +202,11 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
     if (!mounted) return;
     setState(() {
       _isLoadingCargos = true;
-      _listaCargos = []; // Limpiamos la lista anterior
-      _selectedCargoId = null; // Reseteamos el cargo
+      _listaCargos = []; 
+      _selectedCargoId = null; 
     });
 
     try {
-      // Endpoint dinámico según la unidad seleccionada
       final response = await http.get(
         Uri.parse('$_baseUrl/api/cargos-proceso/unidad/$unidadId'),
         headers: {'Accept': 'application/json'},
@@ -135,11 +220,9 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
             _isLoadingCargos = false;
           });
 
-          // Buscar el ID del cargo actual del empleado (Comparando textos)
           final currentCargoStr = widget.employee.cargo.trim().toUpperCase();
           for (var c in _listaCargos) {
-            if (c['nombre'].toString().trim().toUpperCase() ==
-                currentCargoStr) {
+            if (c['nombre'].toString().trim().toUpperCase() == currentCargoStr) {
               _selectedCargoId = c['id'];
               break;
             }
@@ -152,10 +235,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
   }
 
   // ==========================================
-  // GUARDAR CAMBIOS
-  // ==========================================
-  // ==========================================
-  // GUARDAR CAMBIOS (CONECTADO A SPRING BOOT)
+  // GUARDAR CAMBIOS DE TEXTO
   // ==========================================
   Future<void> _guardarCambios() async {
     if (!_formKey.currentState!.validate()) return;
@@ -171,7 +251,6 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
 
     setState(() => _isSaving = true);
 
-    // 🔥 ARMAMOS EL MAPA EXACTAMENTE COMO LO PIDE TU PROVIDER/SWAGGER
     final nuevosDatos = {
       "nombre": _nombreCtrl.text.trim(),
       "apellidoPaterno": _paternoCtrl.text.trim(),
@@ -183,14 +262,10 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
       "circunscripcion": widget.employee.Circu,
       "tipo": "EVENTUAL",
       "imagenId": widget.employee.ImageId,
-
-      // 🔥 EL DATO CLAVE: El ID numérico del cargo que el backend exige
       "cargoID": _selectedCargoId,
     };
 
     final provider = context.read<EmployeeProvider>();
-
-    // Llamamos al Provider (este ya tiene la lógica de limpiar caché y recargar lista)
     bool success = await provider.updateEmployee(
       widget.employee.id,
       nuevosDatos,
@@ -200,7 +275,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
       setState(() => _isSaving = false);
 
       if (success) {
-        Navigator.pop(context); // Cerramos el modal
+        Navigator.pop(context); 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Datos actualizados correctamente."),
@@ -226,7 +301,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
       padding: const EdgeInsets.only(bottom: 100),
       child: Center(
         child: Container(
-          width: 600, // Ancho perfecto para web
+          width: 600, 
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(
@@ -241,7 +316,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // =====================================
-                // HEADER OSCURO (Estilo AddUnidad)
+                // HEADER OSCURO 
                 // =====================================
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -275,7 +350,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
                               ),
                             ),
                             Text(
-                              "ACTUALIZACIÓN DE DATOS Y ASIGNACIÓN",
+                              "ACTUALIZACIÓN DE DATOS Y FOTOGRAFÍA",
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 10,
@@ -292,6 +367,73 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
                     ],
                   ),
                 ),
+
+                // =====================================
+                // 🔥 NUEVA SECCIÓN DE FOTOGRAFÍA
+                // =====================================
+                Container(
+                  color: Colors.grey.shade50,
+                  padding: const EdgeInsets.symmetric(vertical: 25),
+                  child: Center(
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        // Círculo de la foto actual
+                        Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.grey.shade300, width: 3),
+                            color: Colors.white,
+                            image: widget.employee.photoUrl.isNotEmpty
+                                ? DecorationImage(
+                                    image: NetworkImage(widget.employee.photoUrl),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                          ),
+                          child: widget.employee.photoUrl.isEmpty
+                              ? Icon(Icons.person, size: 70, color: Colors.grey.shade400)
+                              : null,
+                        ),
+
+                        // Si está subiendo, tapamos con ruedita
+                        if (_isUploadingPhoto)
+                          Container(
+                            width: 140,
+                            height: 140,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black.withOpacity(0.5),
+                            ),
+                            child: const Center(
+                              child: CircularProgressIndicator(color: Colors.amber),
+                            ),
+                          ),
+
+                        // Botón flotante para editar
+                        if (!_isUploadingPhoto)
+                          GestureDetector(
+                            onTap: _cambiarFotoPerfil,
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: const BoxDecoration(
+                                color: Colors.blueAccent,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))
+                                ],
+                              ),
+                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const Divider(height: 1, color: Colors.grey),
 
                 // =====================================
                 // FORMULARIO
@@ -370,7 +512,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
                         const Divider(),
                         const SizedBox(height: 20),
 
-                        // --- Fila 3: ASIGNACIÓN (CASCADA CON ENDPOINTS) ---
+                        // --- Fila 3: ASIGNACIÓN ---
                         _buildLabel(Icons.business, "Unidad / Departamento *"),
                         _isLoadingUnidades
                             ? const LinearProgressIndicator(
@@ -393,9 +535,7 @@ class _EditEmployeeSheetState extends State<EditEmployeeSheet> {
                                 }).toList(),
                                 onChanged: (nuevoId) {
                                   setState(() => _selectedUnidadId = nuevoId);
-                                  _cargarCargos(
-                                    nuevoId!,
-                                  ); // Llama al endpoint de cargos
+                                  _cargarCargos(nuevoId!); 
                                 },
                                 validator: (v) =>
                                     v == null ? 'Seleccione Unidad' : null,

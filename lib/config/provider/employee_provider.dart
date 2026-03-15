@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:carnetizacion/config/constans/constants/environment.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/employee_model.dart';
 import 'package:flutter/foundation.dart';
@@ -583,6 +584,43 @@ class EmployeeProvider extends ChangeNotifier {
       }
       return false;
     } catch (e) {
+      return false;
+    }
+  }
+  // =========================================================================================
+  // 🔥 MÉTODO PARA ACTUALIZAR LA IMAGEN DE PERFIL DIRECTO
+  // =========================================================================================
+  Future<bool> actualizarImagenPerfil(int personalId, int imagenId, XFile nuevaImagen) async {
+    try {
+      final url = Uri.parse('$_baseUrl/api/personal/admin/$personalId/imagen/$imagenId');
+      
+      var request = http.MultipartRequest('PUT', url);
+      
+      // Agregamos el token de autorización
+      request.headers.addAll(Environment.authHeaders);
+      
+      // Adjuntamos el archivo
+      final fileBytes = await nuevaImagen.readAsBytes();
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file', // Nombre del parámetro que espera Spring Boot
+          fileBytes,
+          filename: 'foto_perfil_${personalId}.jpg',
+        ),
+      );
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // La API nos devuelve la URL de la nueva imagen o el empleado actualizado
+        // Refrescamos toda la lista para que cambie en todas partes (tabla, etc.)
+        await fetchEmployees();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print("Error subiendo foto: $e");
       return false;
     }
   }
