@@ -18,13 +18,13 @@ class _ComputoScreenState extends State<ComputoScreen> {
   bool _showOnlyPending = false;
 
   late Set<String> _unidadesDisponibles;
-  late Map<String, int> _conteoUnidades;
+  late Map<String, List<String>> _cargosPorUnidad; // 🔥 NUEVO: Mapa relacional
 
   @override
   void initState() {
     super.initState();
     _unidadesDisponibles = {};
-    _conteoUnidades = {};
+    _cargosPorUnidad = {};
     _dataSource = ComputoDataSource(context, [], _updateState);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -42,8 +42,6 @@ class _ComputoScreenState extends State<ComputoScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<EmployeeProvider>();
 
-    // 🔥 FILTRO MAESTRO CORREGIDO:
-    // Ahora acepta "PERSONAL ACTIVO" o cualquier variación que contenga "ACTIV"
     final activeEmployees = provider.allEmployees.where((emp) {
       final estado = emp.estadoActual.trim().toUpperCase();
       return estado == "PERSONAL ACTIVO" ||
@@ -52,13 +50,25 @@ class _ComputoScreenState extends State<ComputoScreen> {
     }).toList();
 
     _unidadesDisponibles.clear();
-    _conteoUnidades.clear();
+    Map<String, Set<String>> tempCargos = {};
+
+    // 🔥 Agrupamos las unidades y cargos solo de la gente activa
     for (var emp in activeEmployees) {
       if (emp.unidad.isNotEmpty) {
         _unidadesDisponibles.add(emp.unidad);
-        _conteoUnidades[emp.unidad] = (_conteoUnidades[emp.unidad] ?? 0) + 1;
+        if (!tempCargos.containsKey(emp.unidad)) {
+          tempCargos[emp.unidad] = {};
+        }
+        if (emp.cargo.isNotEmpty) {
+          tempCargos[emp.unidad]!.add(emp.cargo);
+        }
       }
     }
+
+    _cargosPorUnidad.clear();
+    tempCargos.forEach((k, v) {
+      _cargosPorUnidad[k] = v.toList()..sort();
+    });
 
     _dataSource.updateData(activeEmployees);
 
@@ -136,11 +146,11 @@ class _ComputoScreenState extends State<ComputoScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // SIDEBAR
+                  // SIDEBAR 🔥 Pasamos el nuevo mapa
                   ComputoSidebar(
                     dataSource: _dataSource,
                     unidades: _unidadesDisponibles,
-                    conteoUnidades: _conteoUnidades,
+                    cargosPorUnidad: _cargosPorUnidad,
                   ),
 
                   // TABLA
@@ -185,7 +195,6 @@ class _ComputoScreenState extends State<ComputoScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-
                                 const SizedBox(width: 15),
 
                                 FilterChip(
@@ -245,9 +254,9 @@ class _ComputoScreenState extends State<ComputoScreen> {
                                       fillColor: Colors.white,
                                       contentPadding:
                                           const EdgeInsets.symmetric(
-                                            vertical: 0,
-                                            horizontal: 15,
-                                          ),
+                                        vertical: 0,
+                                        horizontal: 15,
+                                      ),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
                                         borderSide: BorderSide(
@@ -274,8 +283,6 @@ class _ComputoScreenState extends State<ComputoScreen> {
                                 ElevatedButton.icon(
                                   onPressed: _hasSelection
                                       ? () async {
-                                          // 🔥 Agregamos async
-                                          // Mostramos un mensajito de "Cargando"
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
@@ -287,7 +294,6 @@ class _ComputoScreenState extends State<ComputoScreen> {
                                             ),
                                           );
 
-                                          // Llamamos a la API a través del DataSource
                                           final success = await _dataSource
                                               .darAccesoMasivo();
 
@@ -344,7 +350,6 @@ class _ComputoScreenState extends State<ComputoScreen> {
                             ),
                           ),
                           const Divider(height: 1),
-
                           Expanded(
                             child: provider.isLoading
                                 ? const Center(

@@ -4,15 +4,52 @@ import 'package:provider/provider.dart';
 import '../../config/provider/employee_provider.dart';
 import '../../config/theme/app_colors.dart';
 
-class SidebarFilter extends StatelessWidget {
+class SidebarFilter extends StatefulWidget {
   const SidebarFilter({super.key});
+
+  @override
+  State<SidebarFilter> createState() => _SidebarFilterState();
+}
+
+class _SidebarFilterState extends State<SidebarFilter> {
+  // 🔥 Controlador para abrir el menú sin necesidad de clics
+  final MenuController _menuController = MenuController();
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EmployeeProvider>();
 
-    // Usamos allEmployees para que el número de la burbuja no cambie al filtrar
-    final allEmp = provider.allEmployees;
+    // =========================================================
+    // 🔥 ESTILOS MODERNOS Y LIMPIOS (ADIÓS ESTILO RETRO)
+    // =========================================================
+    final MenuStyle modernMenuStyle = MenuStyle(
+      backgroundColor: MaterialStateProperty.all(Colors.white),
+      surfaceTintColor: MaterialStateProperty.all(Colors.white), // Mata el "beige" de Material 3
+      elevation: MaterialStateProperty.all(6),
+      shadowColor: MaterialStateProperty.all(Colors.black.withOpacity(0.15)),
+      shape: MaterialStateProperty.all(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade200, width: 1),
+        ),
+      ),
+      padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 8)),
+    );
+
+    final ButtonStyle modernItemStyle = ButtonStyle(
+      padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
+      foregroundColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.hovered)) return AppColors.primaryDark;
+        return Colors.black87;
+      }),
+      backgroundColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.hovered)) return Colors.blueGrey.withOpacity(0.08);
+        return Colors.white;
+      }),
+      overlayColor: MaterialStateProperty.all(Colors.transparent), // Quita la onda gris por defecto
+      textStyle: MaterialStateProperty.all(const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+    );
+    // =========================================================
 
     return Container(
       width: 260,
@@ -29,188 +66,174 @@ class SidebarFilter extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. TÍTULO
-          Row(
-            children: const [
-              Icon(Icons.filter_list, color: AppColors.primaryYellow),
-              SizedBox(width: 10),
-              Text(
-                "Filtros Rápidos",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryDark,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          const Divider(),
-          const SizedBox(height: 15),
-
-          // 2. SECCIÓN UNIDADES
-          const Text(
-            "UNIDAD DESTINADA",
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 15),
-
-          // 🔥 SOLUCIÓN AL OVERFLOW: Expandimos y hacemos scrollable la lista de Unidades
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: provider.unidadesDisponibles.map((unidad) {
-                  // Verificamos si este botón está presionado
-                  final isSelected = provider.selectedUnidadFilter == unidad;
-                  // Contamos cuántas personas pertenecen a esta unidad
-                  final count = allEmp.where((e) => e.unidad == unidad).length;
-
-                  return _buildUnidadItem(
-                    title: unidad,
-                    count: count,
-                    isSelected: isSelected,
-                    onTap: () => provider.toggleUnidadFilter(unidad),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // 3. SECCIÓN ESTADOS
-          const Text(
-            "ESTADO",
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 15),
-
-          // CHIPS DINÁMICOS DE ESTADOS
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: provider.estadosDisponibles.map((estado) {
-              final isSelected = provider.selectedEstadoFilter == estado;
-
-              // Lógica de colores según la palabra
-              Color baseColor = Colors.grey;
-              if (estado.toUpperCase().contains('IMPRESO')) {
-                baseColor = Colors.green;
-              }
-              if (estado.toUpperCase().contains('REGISTRADO') ||
-                  estado.toUpperCase().contains('PENDIENTE')) {
-                baseColor = Colors.orange;
-              }
-
-              return _buildEstadoChip(
-                estado: estado,
-                isSelected: isSelected,
-                baseColor: baseColor,
-                onTap: () => provider.toggleEstadoFilter(estado),
-              );
-            }).toList(),
-          ),
-
-          const SizedBox(
-            height: 20,
-          ), // Un pequeño espacio antes del botón limpiar
-          // 4. BOTÓN LIMPIAR FILTROS (Solo aparece si hay algún filtro activo)
-          if (provider.selectedUnidadFilter != null ||
-              provider.selectedEstadoFilter != null ||
-              provider.searchQuery.isNotEmpty)
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: () => provider.clearFilters(),
-                icon: const Icon(
-                  Icons.clear_all,
-                  color: Colors.redAccent,
-                  size: 18,
-                ),
-                label: const Text(
-                  "Limpiar Filtros",
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  backgroundColor: Colors.redAccent.withOpacity(0.1),
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // =====================================
-  // WIDGET AUXILIAR: BOTÓN DE UNIDAD
-  // =====================================
-  Widget _buildUnidadItem({
-    required String title,
-    required int count,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryDark : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? Colors.white : AppColors.textDark,
+            // 1. TÍTULO
+            Row(
+              children: const [
+                Icon(Icons.filter_list, color: AppColors.primaryYellow),
+                SizedBox(width: 10),
+                Text(
+                  "Filtros Rápidos",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryDark,
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
+              ],
+            ),
+            const SizedBox(height: 15),
+            const Divider(),
+            const SizedBox(height: 15),
+
+            // 2. SECCIÓN UNIDADES Y CARGOS
+            const Text(
+              "UNIDAD Y CARGO",
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+                letterSpacing: 1,
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.white.withOpacity(0.2)
-                    : Colors.grey[200],
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                count.toString(),
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: isSelected ? Colors.white : Colors.black87,
-                ),
+            const SizedBox(height: 10),
+
+            // 🔥 SOLUCIÓN DEFINITIVA: MouseRegion + MenuAnchor
+            MouseRegion(
+              onEnter: (_) {
+                // Abre el menú al instante cuando el mouse pasa por encima
+                if (!_menuController.isOpen) {
+                  _menuController.open();
+                }
+              },
+              child: MenuAnchor(
+                controller: _menuController,
+                style: modernMenuStyle,
+                menuChildren: [
+                  MenuItemButton(
+                    style: modernItemStyle,
+                    onPressed: () => provider.setUnidadYCargo(null, null),
+                    child: const Text('TODAS LAS UNIDADES', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                  ),
+                  const PopupMenuDivider(),
+                  
+                  // Renderizamos la cascada
+                  ...provider.unidadesDisponibles.map((unidad) {
+                    return SubmenuButton(
+                      menuStyle: modernMenuStyle,
+                      style: modernItemStyle,
+                      menuChildren: [
+                        MenuItemButton(
+                          style: modernItemStyle,
+                          onPressed: () => provider.setUnidadYCargo(unidad, null),
+                          child: const Text('Todos los Cargos', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                        ),
+                        ...(provider.cargosPorUnidad[unidad] ?? []).map((cargo) {
+                          return MenuItemButton(
+                            style: modernItemStyle,
+                            onPressed: () => provider.setUnidadYCargo(unidad, cargo),
+                            child: Text(cargo),
+                          );
+                        }).toList(),
+                      ],
+                      child: Text(unidad), 
+                    );
+                  }).toList(),
+                ],
+                // El diseño visual de la caja
+                builder: (context, controller, child) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            provider.selectedUnidadFilter == null
+                                ? 'Seleccionar Unidad...'
+                                : '${provider.selectedUnidadFilter}\n${provider.selectedCargoFilter ?? 'Todos los cargos'}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark, fontSize: 11, height: 1.3),
+                            maxLines: 3, // Ya no se corta el texto
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
+
+            const SizedBox(height: 25),
+
+            // 3. SECCIÓN ESTADOS
+            const Text(
+              "ESTADO",
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: provider.estadosDisponibles.map((estado) {
+                final isSelected = provider.selectedEstadoFilter == estado;
+
+                Color baseColor = Colors.grey;
+                if (estado.toUpperCase().contains('IMPRESO')) {
+                  baseColor = Colors.green;
+                }
+                if (estado.toUpperCase().contains('REGISTRADO') ||
+                    estado.toUpperCase().contains('PENDIENTE')) {
+                  baseColor = Colors.orange;
+                }
+
+                return _buildEstadoChip(
+                  estado: estado,
+                  isSelected: isSelected,
+                  baseColor: baseColor,
+                  onTap: () => provider.toggleEstadoFilter(estado),
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 25),
+
+            // 4. BOTÓN LIMPIAR FILTROS
+            if (provider.selectedUnidadFilter != null ||
+                provider.selectedCargoFilter != null ||
+                provider.selectedEstadoFilter != null ||
+                provider.searchQuery.isNotEmpty)
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () => provider.clearFilters(),
+                  icon: const Icon(Icons.clear_all, color: Colors.redAccent, size: 18),
+                  label: const Text(
+                    "Limpiar Filtros",
+                    style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                  ),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.redAccent.withOpacity(0.1),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -230,13 +253,11 @@ class SidebarFilter extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? baseColor : baseColor.withOpacity(0.1),
+          color: isSelected ? baseColor : baseColor.withOpacity(0.08),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? baseColor : Colors.transparent,
-          ),
+          border: Border.all(color: isSelected ? baseColor : Colors.transparent),
         ),
         child: Text(
           estado,

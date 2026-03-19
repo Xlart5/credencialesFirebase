@@ -36,13 +36,7 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
   }
 
   // =======================================================
-  // MAGIA PDF: CREAR Y MOSTRAR EL DOCUMENTO
-  // =======================================================
-  // =======================================================
-  // MAGIA PDF: CREAR Y MOSTRAR EL DOCUMENTO
-  // =======================================================
-  // =======================================================
-  // MAGIA PDF: CREAR Y MOSTRAR EL DOCUMENTO
+  // MAGIA PDF: CREAR Y MOSTRAR EL DOCUMENTO (AHORA CON FRENTE Y ATRÁS)
   // =======================================================
   Future<void> _generarEImprimir() async {
     if (!_formKey.currentState!.validate()) return;
@@ -54,12 +48,20 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
 
     List<String> lotesQr = provider.generarLoteQRs(_tipoSeleccionado, cantidad);
 
-    // 🔥 NUEVO: Cargamos el logo de las elecciones desde los assets
+    // 🔥 Cargamos el logo de las elecciones y la imagen trasera desde los assets
     final ByteData logoData = await rootBundle.load(
       'assets/images/logo_elecciones.png',
     );
     final pw.MemoryImage logoElecciones = pw.MemoryImage(
       logoData.buffer.asUint8List(),
+    );
+
+    // 🔥 CARGAMOS LA IMAGEN TRASERA (Ajusta la ruta si usas otra para externos)
+    final ByteData backData = await rootBundle.load(
+      'assets/images/ATRAS_EVENTUAL_2025.png',
+    );
+    final pw.MemoryImage templateBack = pw.MemoryImage(
+      backData.buffer.asUint8List(),
     );
 
     final pdf = pw.Document();
@@ -74,6 +76,7 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
         (i + itemsPerPage) < lotesQr.length ? i + itemsPerPage : lotesQr.length,
       );
 
+      // --- PÁGINA 1: FRENTE ---
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
@@ -86,12 +89,44 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
               mainAxisSpacing: 5,
               children: List.generate(itemsPerPage, (index) {
                 if (index < chunk.length) {
-                  // Le pasamos el logo a la función que dibuja la tarjeta
                   return _buildPdfCard(
                     chunk[index],
                     _tipoSeleccionado,
                     logoElecciones,
                   );
+                } else {
+                  return pw.SizedBox(width: cardWidth, height: cardHeight);
+                }
+              }),
+            );
+          },
+        ),
+      );
+
+      // --- PÁGINA 2: ATRÁS (Espejo) ---
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+          build: (pw.Context context) {
+            // Lógica para que las tarjetas coincidan al imprimir a doble cara
+            final List<int?> mirrorIndexes = List.filled(itemsPerPage, null);
+            for (int j = 0; j < chunk.length; j++) {
+              final int row = j ~/ 2;
+              final int col = j % 2;
+              final int mirrorCol = (col == 0) ? 1 : 0;
+              final int newIndex = (row * 2) + mirrorCol;
+              if (newIndex < itemsPerPage) mirrorIndexes[newIndex] = j;
+            }
+
+            return pw.GridView(
+              crossAxisCount: 2,
+              childAspectRatio: cardWidth / cardHeight,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 5,
+              children: List.generate(itemsPerPage, (index) {
+                if (mirrorIndexes[index] != null) {
+                  return _buildBackCard(templateBack);
                 } else {
                   return pw.SizedBox(width: cardWidth, height: cardHeight);
                 }
@@ -112,16 +147,7 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
   }
 
   // =======================================================
-  // DISEÑO DE LA CREDENCIAL EXTERNA (270x171 PURO)
-  // =======================================================
-  // =======================================================
-  // DISEÑO DE LA CREDENCIAL EXTERNA (270x171 PURO) - REFACTORIZADO
-  // =======================================================
-  // =======================================================
-  // DISEÑO DE LA CREDENCIAL EXTERNA (GRIS + MARCA DE AGUA)
-  // =======================================================
-  // =======================================================
-  // DISEÑO DE LA CREDENCIAL EXTERNA (GRIS + INICIAL GIGANTE)
+  // DISEÑO DE LA CREDENCIAL EXTERNA (FRENTE)
   // =======================================================
   pw.Widget _buildPdfCard(
     String qrTexto,
@@ -131,18 +157,16 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
     const double cardWidth = 270.0;
     const double cardHeight = 171.0;
 
-    // 1. COLORES NEUTROS
     final colorFondoClaro = PdfColor.fromHex('#F5F5F5');
     final colorFondoOscuro = PdfColor.fromHex('#BDBDBD');
     final colorPlomoOscuro = PdfColor.fromHex('#2A2A2A');
     String inicial = '';
+    
     if (tipo.toUpperCase() == 'PUBLICO GENERAL') {
       inicial = 'G';
     } else if (tipo.isNotEmpty) {
       inicial = tipo[0].toUpperCase();
     }
-
-    // Extraemos solo la primera letra de la palabra (Ej: "PRENSA" -> "P")
 
     return pw.Container(
       width: cardWidth,
@@ -166,7 +190,7 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
               ),
             ),
 
-            // 2. FORMAS PERSONALIZADAS (Onda y Franja Negra)
+            // 2. FORMAS PERSONALIZADAS
             pw.Positioned.fill(
               child: pw.CustomPaint(
                 size: const PdfPoint(cardWidth, cardHeight),
@@ -174,7 +198,6 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
                   final width = size.x;
                   final height = size.y;
 
-                  // Onda blanca
                   canvas.setFillColor(PdfColors.white);
                   canvas.moveTo(0, height);
                   canvas.lineTo(width * 0.35, height);
@@ -189,7 +212,6 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
                   canvas.lineTo(0, 0);
                   canvas.fillPath();
 
-                  // Franja inferior oscura
                   canvas.setFillColor(colorPlomoOscuro);
                   canvas.drawRect(0, 0, width, height * 0.15);
                   canvas.fillPath();
@@ -197,17 +219,17 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
               ),
             ),
 
-            // 🔥 3. MARCA DE AGUA GIGANTE (SOLO LA INICIAL)
+            // 3. MARCA DE AGUA GIGANTE
             pw.Positioned.fill(
               left: 30,
               child: pw.Center(
                 child: pw.Opacity(
-                  opacity: 0.2, // Transparencia muy sutil
+                  opacity: 0.2,
                   child: pw.Text(
-                    inicial, // Usamos la variable que creamos arriba
+                    inicial,
                     textAlign: pw.TextAlign.center,
                     style: pw.TextStyle(
-                      fontSize: 160, // ¡Letra colosal!
+                      fontSize: 160,
                       fontWeight: pw.FontWeight.bold,
                       color: PdfColors.black,
                     ),
@@ -216,7 +238,7 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
               ),
             ),
 
-            // 4. TÍTULO TED CENTRADO Y NEGRO
+            // 4. TÍTULO TED
             pw.Positioned(
               top: 12,
               left: 0,
@@ -233,7 +255,7 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
               ),
             ),
 
-            // 5. LOGO DE ELECCIONES (A la derecha)
+            // 5. LOGO DE ELECCIONES
             pw.Positioned(
               top: 55,
               right: 30,
@@ -243,7 +265,7 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
               ),
             ),
 
-            // 6. CÓDIGO QR (Izquierda sobre zona blanca)
+            // 6. CÓDIGO QR
             pw.Positioned(
               top: 45,
               left: 20,
@@ -265,19 +287,18 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
               ),
             ),
 
-            // 7. TIPO DE CREDENCIAL EN LA FRANJA INFERIOR NEGRA
+            // 7. TIPO DE CREDENCIAL
             pw.Positioned(
               bottom: 0,
               left: 0,
               right: 0,
-
               child: pw.Center(
                 child: pw.Text(
-                  tipo.toUpperCase(), // EJ: "PRENSA"
+                  tipo.toUpperCase(),
                   style: pw.TextStyle(
                     fontSize: 16,
                     fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.white, // Blanco sobre negro
+                    color: PdfColors.white,
                     letterSpacing: 3,
                   ),
                 ),
@@ -286,6 +307,23 @@ class _GenerarQrsScreenState extends State<GenerarQrsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // =======================================================
+  // DISEÑO DE LA CREDENCIAL EXTERNA (ATRÁS)
+  // =======================================================
+  pw.Widget _buildBackCard(pw.ImageProvider bg) {
+    const double cardWidth = 270.0;
+    const double cardHeight = 171.0;
+    
+    return pw.Container(
+      width: cardWidth,
+      height: cardHeight,
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
+      ),
+      child: pw.Image(bg, fit: pw.BoxFit.fill),
     );
   }
 

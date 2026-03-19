@@ -25,6 +25,7 @@ class ComputoDataSource extends DataTableSource {
   bool _showOnlyPending = false;
   String _searchQuery = '';
   String? _selectedUnidad;
+  String? _selectedCargo; // 🔥 NUEVO: Filtro de cargo
   bool? _selectedAcceso;
 
   ComputoDataSource(this.context, this._allItems, this.onStateChanged);
@@ -78,8 +79,10 @@ class ComputoDataSource extends DataTableSource {
     _clearSelections();
   }
 
-  void setUnidadFilter(String? unidad) {
+  // 🔥 NUEVO: Recibe unidad y cargo al mismo tiempo
+  void setUnidadYCargoFilter(String? unidad, String? cargo) {
     _selectedUnidad = unidad;
+    _selectedCargo = cargo;
     _clearSelections();
   }
 
@@ -91,6 +94,7 @@ class ComputoDataSource extends DataTableSource {
   void clearAllFilters() {
     _searchQuery = '';
     _selectedUnidad = null;
+    _selectedCargo = null; // 🔥 Se limpia
     _selectedAcceso = null;
     _showOnlyPending = false;
     _clearSelections();
@@ -108,10 +112,13 @@ class ComputoDataSource extends DataTableSource {
     return _allItems.where((item) {
       final emp = item.empleado;
       if (_showOnlyPending && item.tieneAcceso) return false;
-      if (_selectedUnidad != null && emp.unidad != _selectedUnidad)
-        return false;
-      if (_selectedAcceso != null && item.tieneAcceso != _selectedAcceso)
-        return false;
+      
+      // 🔥 Validación estricta de filtros
+      if (_selectedUnidad != null && emp.unidad != _selectedUnidad) return false;
+      if (_selectedCargo != null && emp.cargo != _selectedCargo) return false;
+      
+      if (_selectedAcceso != null && item.tieneAcceso != _selectedAcceso) return false;
+      
       if (_searchQuery.isNotEmpty) {
         final matchesName = emp.nombreCompleto.toLowerCase().contains(
           _searchQuery,
@@ -130,20 +137,15 @@ class ComputoDataSource extends DataTableSource {
   bool get hasSelection => items.any((item) => item.isSelected);
   int get selectedCount => items.where((item) => item.isSelected).length;
 
-  // 🔥 NUEVO: EJECUTA LA PETICIÓN HTTP MASIVA
   Future<bool> darAccesoMasivo() async {
     final seleccionados = items.where((item) => item.isSelected).toList();
     if (seleccionados.isEmpty) return false;
 
-    // Extraemos solo los IDs para mandarlos al backend
     final ids = seleccionados.map((i) => i.empleado.id).toList();
-
-    // Llamamos a la API
     final provider = context.read<EmployeeProvider>();
     final success = await provider.habilitarComputoMasivo(ids);
 
     if (success) {
-      // Si la API dice OK, actualizamos visualmente la tabla
       for (var item in seleccionados) {
         item.tieneAcceso = true;
         item.isSelected = false;
@@ -265,21 +267,18 @@ class ComputoDataSource extends DataTableSource {
             inactiveTrackColor: Colors.grey.shade300,
             inactiveThumbColor: Colors.white,
             onChanged: (bool newValue) async {
-              // 1. Cambio optimista (rápido visualmente)
               item.tieneAcceso = newValue;
               notifyListeners();
               onStateChanged();
 
-              // 2. Petición a la API
               final provider = context.read<EmployeeProvider>();
               final success = await provider.cambiarAccesoComputo(
                 emp.id,
                 newValue,
               );
 
-              // 3. Si falla, revertimos el cambio visual
               if (!success) {
-                item.tieneAcceso = !newValue; // Regresa al estado anterior
+                item.tieneAcceso = !newValue;
                 notifyListeners();
                 onStateChanged();
                 ScaffoldMessenger.of(context).showSnackBar(

@@ -161,8 +161,9 @@ class PdfGeneratorService {
     // LA MAGIA CONDICIONAL
     final String cargoMinusculas = emp.cargo.toString().toLowerCase();
 
-    // 🔥 AQUÍ AGREGAMOS LA VALIDACIÓN PARA EL JUEZ
-    final bool esNotario = cargoMinusculas.contains('notari');
+    // 🔥 VALIDACIONES DE CARGO
+    final bool esCoordinadorNotario = cargoMinusculas.contains('coordinador') && cargoMinusculas.contains('notari');
+    final bool esNotarioNormal = cargoMinusculas.contains('notari') && !esCoordinadorNotario;
     final bool esJuez = cargoMinusculas.contains('juez');
 
     // Validación de seguridad para el QR
@@ -180,12 +181,13 @@ class PdfGeneratorService {
           // 1. Fondo
           pw.Positioned.fill(child: pw.Image(bg, fit: pw.BoxFit.fill)),
 
-          // 2. LÓGICA DE LA ESQUINA (QR vs Circunscripción vs Juez Electoral)
+          // 2. LÓGICA DE LA ESQUINA
           pw.Positioned(
-            top: 40,
+            // 🔥 Subimos un poquito el bloque si es coordinador para que entre la etiqueta debajo
+            top: esCoordinadorNotario ? 34 : 40, 
             left: 30,
-            child: esNotario
-                // SI ES NOTARIO: Mostramos la cajita de Circunscripción
+            child: esNotarioNormal
+                // SI ES NOTARIO NORMAL: Cajita de Circunscripción gigante
                 ? pw.Container(
                     width: 70,
                     height: 70,
@@ -205,10 +207,50 @@ class PdfGeneratorService {
                       ],
                     ),
                   )
-                : esJuez
-                // 🔥 SI ES JUEZ: Mostramos texto en vez del QR
+                : esCoordinadorNotario
+                // 🔥 SI ES COORDINADOR: Mostramos el QR intacto y una etiqueta debajo
                 ? pw.Container(
-                    width: 80, // Mismo tamaño que ocuparía el QR
+                    width: 60,
+                    child: pw.Column(
+                      mainAxisSize: pw.MainAxisSize.min,
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        // El QR 100% limpio
+                        pw.Container(
+                          color: PdfColors.white,
+                          child: pw.BarcodeWidget(
+                            barcode: pw.Barcode.qrCode(),
+                            data: qrData,
+                            width: 52, // Ligeramente más pequeño para que entre el texto abajo
+                            height: 52,
+                            color: PdfColors.black,
+                            backgroundColor: PdfColors.white,
+                          ),
+                        ),
+                        pw.SizedBox(height: 2),
+                        // Etiqueta negra con letras blancas estilo "Placa"
+                        pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: pw.BoxDecoration(
+                            color: PdfColors.grey,
+                            borderRadius: pw.BorderRadius.circular(3),
+                          ),
+                          child: pw.Text(
+                             emp.Circu,
+                            style: pw.TextStyle(
+                              fontSize: 7,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : esJuez
+                // SI ES JUEZ: Mostramos texto en vez del QR
+                ? pw.Container(
+                    width: 80, 
                     height: 60,
                     alignment: pw.Alignment.center,
                     child: pw.Column(
@@ -219,7 +261,7 @@ class PdfGeneratorService {
                           "JUEZ",
                           textAlign: pw.TextAlign.center,
                           style: pw.TextStyle(
-                            fontSize: 16, // Tamaño ajustable
+                            fontSize: 16,
                             fontWeight: pw.FontWeight.bold,
                             color: PdfColors.black,
                           ),
@@ -229,7 +271,7 @@ class PdfGeneratorService {
                           "ELECTORAL",
                           textAlign: pw.TextAlign.center,
                           style: pw.TextStyle(
-                            fontSize: 12, // Tamaño ajustable
+                            fontSize: 12,
                             fontWeight: pw.FontWeight.bold,
                             color: PdfColors.black,
                           ),

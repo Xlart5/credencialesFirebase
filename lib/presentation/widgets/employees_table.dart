@@ -5,8 +5,17 @@ import 'package:go_router/go_router.dart';
 import '../../config/theme/app_colors.dart';
 import 'employee_datasource.dart';
 
-class EmployeesTable extends StatelessWidget {
+// 🔥 CAMBIO 1: Ahora es un StatefulWidget para poder actualizar la pantalla
+class EmployeesTable extends StatefulWidget {
   const EmployeesTable({super.key});
+
+  @override
+  State<EmployeesTable> createState() => _EmployeesTableState();
+}
+
+class _EmployeesTableState extends State<EmployeesTable> {
+  // 🔥 CAMBIO 2: Creamos la variable que recordará cuántas filas queremos ver
+  int _filasPorPagina = 10;
 
   @override
   Widget build(BuildContext context) {
@@ -57,9 +66,22 @@ class EmployeesTable extends StatelessWidget {
                 ],
                 source: dataSource,
                 header: const Text("Listado Oficial"),
-                rowsPerPage: 10,
-                availableRowsPerPage: const [10, 20, 50],
-                onRowsPerPageChanged: (value) {},
+                
+                // 🔥 CAMBIO 3: Usamos nuestra variable dinámica
+                rowsPerPage: _filasPorPagina,
+                
+                // 🔥 CAMBIO 4: Agregamos el 100 a las opciones
+                availableRowsPerPage: const [10, 20, 50, 100],
+                
+                // 🔥 CAMBIO 5: ¡Le damos vida a la función!
+                onRowsPerPageChanged: (nuevoValor) {
+                  if (nuevoValor != null) {
+                    setState(() {
+                      _filasPorPagina = nuevoValor;
+                    });
+                  }
+                },
+                
                 showCheckboxColumn: true,
                 columnSpacing: 20,
                 horizontalMargin: 20,

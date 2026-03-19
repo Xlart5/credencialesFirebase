@@ -1,4 +1,5 @@
 import 'package:carnetizacion/config/provider/externos_provider.dart';
+import 'package:carnetizacion/config/provider/historial_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -55,6 +56,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => EmployeeProvider()),
         ChangeNotifierProvider(create: (_) => RegisterProvider()),
         ChangeNotifierProvider(create: (_) => UnidadesProvider()),
+         ChangeNotifierProvider(create: (_) => HistorialProvider()),
         ChangeNotifierProvider(create: (context) => ExternosProvider()),
       ],
       child: MaterialApp.router(

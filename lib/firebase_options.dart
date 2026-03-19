@@ -41,51 +41,54 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDHJhKAQaU5NJS9uqkSdEOIUZvQ0H_0jP8',
-    appId: '1:693831024087:web:1c3d205e0a2c8f66a41f92',
-    messagingSenderId: '693831024087',
-    projectId: 'controlaccesoqr-341df',
-    authDomain: 'controlaccesoqr-341df.firebaseapp.com',
-    databaseURL: 'https://controlaccesoqr-341df-default-rtdb.firebaseio.com',
-    storageBucket: 'controlaccesoqr-341df.firebasestorage.app',
+    apiKey: 'AIzaSyBsu_Bi5Wd-AGFtP9A854ROTAs13_iPFlU',
+    appId: '1:651690558061:web:029d17c6743b729e50f564',
+    messagingSenderId: '651690558061',
+    projectId: 'credenciales-f2be2',
+    authDomain: 'credenciales-f2be2.firebaseapp.com',
+    databaseURL: 'https://credenciales-f2be2-default-rtdb.firebaseio.com',
+    storageBucket: 'credenciales-f2be2.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAwrw5lKR5UEnYoeiuTve5wRT0Vz74QK3o',
-    appId: '1:693831024087:android:9498f3e42a6f2721a41f92',
-    messagingSenderId: '693831024087',
-    projectId: 'controlaccesoqr-341df',
-    databaseURL: 'https://controlaccesoqr-341df-default-rtdb.firebaseio.com',
-    storageBucket: 'controlaccesoqr-341df.firebasestorage.app',
+    apiKey: 'AIzaSyDa14iX7WP9VzYyhqURy8HC2r2D_kTATyE',
+    appId: '1:651690558061:android:33ba6204ae68c7da50f564',
+    messagingSenderId: '651690558061',
+    projectId: 'credenciales-f2be2',
+    databaseURL: 'https://credenciales-f2be2-default-rtdb.firebaseio.com',
+    storageBucket: 'credenciales-f2be2.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAoefI6BaChPs8ekOlZ8vJS_DzMVT2dDF8',
-    appId: '1:693831024087:ios:243eab04472c45e0a41f92',
-    messagingSenderId: '693831024087',
-    projectId: 'controlaccesoqr-341df',
-    databaseURL: 'https://controlaccesoqr-341df-default-rtdb.firebaseio.com',
-    storageBucket: 'controlaccesoqr-341df.firebasestorage.app',
+    apiKey: 'AIzaSyB0bYYmZZ0Fhs0komRlTgQ7wy-An4gReK0',
+    appId: '1:651690558061:ios:66363d8cc150b1b050f564',
+    messagingSenderId: '651690558061',
+    projectId: 'credenciales-f2be2',
+    databaseURL: 'https://credenciales-f2be2-default-rtdb.firebaseio.com',
+    storageBucket: 'credenciales-f2be2.firebasestorage.app',
+    iosClientId: '651690558061-blhq5c86uis3iq5p5m05g5gr4k93lvj8.apps.googleusercontent.com',
     iosBundleId: 'com.example.carnetizacion',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyAoefI6BaChPs8ekOlZ8vJS_DzMVT2dDF8',
-    appId: '1:693831024087:ios:243eab04472c45e0a41f92',
-    messagingSenderId: '693831024087',
-    projectId: 'controlaccesoqr-341df',
-    databaseURL: 'https://controlaccesoqr-341df-default-rtdb.firebaseio.com',
-    storageBucket: 'controlaccesoqr-341df.firebasestorage.app',
+    apiKey: 'AIzaSyB0bYYmZZ0Fhs0komRlTgQ7wy-An4gReK0',
+    appId: '1:651690558061:ios:66363d8cc150b1b050f564',
+    messagingSenderId: '651690558061',
+    projectId: 'credenciales-f2be2',
+    databaseURL: 'https://credenciales-f2be2-default-rtdb.firebaseio.com',
+    storageBucket: 'credenciales-f2be2.firebasestorage.app',
+    iosClientId: '651690558061-blhq5c86uis3iq5p5m05g5gr4k93lvj8.apps.googleusercontent.com',
     iosBundleId: 'com.example.carnetizacion',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDHJhKAQaU5NJS9uqkSdEOIUZvQ0H_0jP8',
-    appId: '1:693831024087:web:158b41d5d3edad9ca41f92',
-    messagingSenderId: '693831024087',
-    projectId: 'controlaccesoqr-341df',
-    authDomain: 'controlaccesoqr-341df.firebaseapp.com',
-    databaseURL: 'https://controlaccesoqr-341df-default-rtdb.firebaseio.com',
-    storageBucket: 'controlaccesoqr-341df.firebasestorage.app',
+    apiKey: 'AIzaSyBsu_Bi5Wd-AGFtP9A854ROTAs13_iPFlU',
+    appId: '1:651690558061:web:3508dd120fc82e7750f564',
+    messagingSenderId: '651690558061',
+    projectId: 'credenciales-f2be2',
+    authDomain: 'credenciales-f2be2.firebaseapp.com',
+    databaseURL: 'https://credenciales-f2be2-default-rtdb.firebaseio.com',
+    storageBucket: 'credenciales-f2be2.firebasestorage.app',
   );
+
 }

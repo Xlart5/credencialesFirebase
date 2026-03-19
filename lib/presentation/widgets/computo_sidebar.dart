@@ -5,13 +5,13 @@ import 'computo_datasource.dart';
 class ComputoSidebar extends StatefulWidget {
   final ComputoDataSource dataSource;
   final Set<String> unidades;
-  final Map<String, int> conteoUnidades;
+  final Map<String, List<String>> cargosPorUnidad; // 🔥 Recibe el mapa
 
   const ComputoSidebar({
     super.key,
     required this.dataSource,
     required this.unidades,
-    required this.conteoUnidades,
+    required this.cargosPorUnidad,
   });
 
   @override
@@ -20,12 +20,15 @@ class ComputoSidebar extends StatefulWidget {
 
 class _ComputoSidebarState extends State<ComputoSidebar> {
   String? _selectedUnidad;
-  bool? _selectedAcceso; // null = Todos, true = Con Acceso, false = Sin Acceso
+  String? _selectedCargo;
+  bool? _selectedAcceso; 
+  final MenuController _menuController = MenuController();
 
-  void _onUnidadTapped(String unidad) {
+  void _onUnidadYCargoTapped(String? unidad, String? cargo) {
     setState(() {
-      _selectedUnidad = _selectedUnidad == unidad ? null : unidad;
-      widget.dataSource.setUnidadFilter(_selectedUnidad);
+      _selectedUnidad = unidad;
+      _selectedCargo = cargo;
+      widget.dataSource.setUnidadYCargoFilter(unidad, cargo);
     });
   }
 
@@ -39,6 +42,7 @@ class _ComputoSidebarState extends State<ComputoSidebar> {
   void _clearFilters() {
     setState(() {
       _selectedUnidad = null;
+      _selectedCargo = null;
       _selectedAcceso = null;
       widget.dataSource.clearAllFilters();
     });
@@ -46,6 +50,35 @@ class _ComputoSidebarState extends State<ComputoSidebar> {
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 ESTILOS MODERNOS (Los mismos que usamos en el Dashboard)
+    final MenuStyle modernMenuStyle = MenuStyle(
+      backgroundColor: MaterialStateProperty.all(Colors.white),
+      surfaceTintColor: MaterialStateProperty.all(Colors.white),
+      elevation: MaterialStateProperty.all(6),
+      shadowColor: MaterialStateProperty.all(Colors.black.withOpacity(0.15)),
+      shape: MaterialStateProperty.all(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade200, width: 1),
+        ),
+      ),
+      padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 8)),
+    );
+
+    final ButtonStyle modernItemStyle = ButtonStyle(
+      padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
+      foregroundColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.hovered)) return AppColors.primaryDark;
+        return Colors.black87;
+      }),
+      backgroundColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.hovered)) return Colors.blueGrey.withOpacity(0.08);
+        return Colors.white;
+      }),
+      overlayColor: MaterialStateProperty.all(Colors.transparent),
+      textStyle: MaterialStateProperty.all(const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+    );
+
     return Container(
       width: 260,
       margin: const EdgeInsets.only(right: 20),
@@ -64,7 +97,6 @@ class _ComputoSidebarState extends State<ComputoSidebar> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. TÍTULO
           Row(
             children: const [
               Icon(Icons.filter_list, color: AppColors.primaryYellow),
@@ -83,9 +115,8 @@ class _ComputoSidebarState extends State<ComputoSidebar> {
           const Divider(),
           const SizedBox(height: 15),
 
-          // 2. SECCIÓN UNIDADES
           const Text(
-            "UNIDAD DESTINADA",
+            "UNIDAD Y CARGO",
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
@@ -93,29 +124,79 @@ class _ComputoSidebarState extends State<ComputoSidebar> {
               letterSpacing: 1,
             ),
           ),
-          const SizedBox(height: 15),
+          const SizedBox(height: 10),
 
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: widget.unidades.map((unidad) {
-                  final isSelected = _selectedUnidad == unidad;
-                  final count = widget.conteoUnidades[unidad] ?? 0;
-
-                  return _buildUnidadItem(
-                    title: unidad,
-                    count: count,
-                    isSelected: isSelected,
-                    onTap: () => _onUnidadTapped(unidad),
+          // 🔥 MENÚ DE HOVER MODERNO
+          MouseRegion(
+            onEnter: (_) {
+              if (!_menuController.isOpen) {
+                _menuController.open();
+              }
+            },
+            child: MenuAnchor(
+              controller: _menuController,
+              style: modernMenuStyle,
+              menuChildren: [
+                MenuItemButton(
+                  style: modernItemStyle,
+                  onPressed: () => _onUnidadYCargoTapped(null, null),
+                  child: const Text('TODAS LAS UNIDADES', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                ),
+                const PopupMenuDivider(),
+                
+                ...widget.unidades.map((unidad) {
+                  return SubmenuButton(
+                    menuStyle: modernMenuStyle,
+                    style: modernItemStyle,
+                    menuChildren: [
+                      MenuItemButton(
+                        style: modernItemStyle,
+                        onPressed: () => _onUnidadYCargoTapped(unidad, null),
+                        child: const Text('Todos los Cargos', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                      ),
+                      ...(widget.cargosPorUnidad[unidad] ?? []).map((cargo) {
+                        return MenuItemButton(
+                          style: modernItemStyle,
+                          onPressed: () => _onUnidadYCargoTapped(unidad, cargo),
+                          child: Text(cargo),
+                        );
+                      }).toList(),
+                    ],
+                    child: Text(unidad), 
                   );
                 }).toList(),
-              ),
+              ],
+              builder: (context, controller, child) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _selectedUnidad == null
+                              ? 'Seleccionar Unidad...'
+                              : '$_selectedUnidad\n${_selectedCargo ?? 'Todos los cargos'}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark, fontSize: 11, height: 1.3),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 25),
 
-          // 3. 🔥 NUEVA SECCIÓN: ACCESO A CÓMPUTO
           const Text(
             "ACCESO A CÓMPUTO",
             style: TextStyle(
@@ -148,87 +229,24 @@ class _ComputoSidebarState extends State<ComputoSidebar> {
 
           const SizedBox(height: 20),
 
-          // 4. BOTÓN LIMPIAR
-          if (_selectedUnidad != null || _selectedAcceso != null)
+          if (_selectedUnidad != null || _selectedAcceso != null || _selectedCargo != null)
             SizedBox(
               width: double.infinity,
               child: TextButton.icon(
                 onPressed: _clearFilters,
-                icon: const Icon(
-                  Icons.clear_all,
-                  color: Colors.redAccent,
-                  size: 18,
-                ),
+                icon: const Icon(Icons.clear_all, color: Colors.redAccent, size: 18),
                 label: const Text(
                   "Limpiar Filtros",
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
                 ),
                 style: TextButton.styleFrom(
                   backgroundColor: Colors.redAccent.withOpacity(0.1),
                   padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildUnidadItem({
-    required String title,
-    required int count,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryDark : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? Colors.white : AppColors.textDark,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.white.withOpacity(0.2)
-                    : Colors.grey[200],
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                count.toString(),
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: isSelected ? Colors.white : Colors.black87,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -243,13 +261,11 @@ class _ComputoSidebarState extends State<ComputoSidebar> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? baseColor : baseColor.withOpacity(0.1),
+          color: isSelected ? baseColor : baseColor.withOpacity(0.08),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? baseColor : Colors.transparent,
-          ),
+          border: Border.all(color: isSelected ? baseColor : Colors.transparent),
         ),
         child: Text(
           estado,

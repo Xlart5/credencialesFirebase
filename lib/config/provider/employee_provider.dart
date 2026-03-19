@@ -17,6 +17,10 @@ class EmployeeProvider extends ChangeNotifier {
   String _searchQuery = '';
   String? _selectedUnidadFilter;
   String? _selectedEstadoFilter;
+  
+  // 🔥 NUEVO: Filtro específico de Cargo
+  String? _selectedCargoFilter;
+  String? get selectedCargoFilter => _selectedCargoFilter;
 
   final Set<int> _contratosCerradosVisualmente = {};
 
@@ -25,7 +29,9 @@ class EmployeeProvider extends ChangeNotifier {
 
   final Set<String> _unidadesDisponibles = {};
   final Set<String> _estadosDisponibles = {};
-  final Set<String> _cargosDisponibles = {};
+  
+  // 🔥 NUEVO: Mapa para conectar cada Unidad con sus respectivos Cargos
+  final Map<String, List<String>> _cargosPorUnidad = {};
 
   List<Employee> get allEmployees => _allEmployees;
   String get searchQuery => _searchQuery;
@@ -33,14 +39,14 @@ class EmployeeProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   Set<String> get unidadesDisponibles => _unidadesDisponibles;
   Set<String> get estadosDisponibles => _estadosDisponibles;
-  Set<String> get cargosDisponibles => _cargosDisponibles;
+  Map<String, List<String>> get cargosPorUnidad => _cargosPorUnidad;
+  
   String? get selectedUnidadFilter => _selectedUnidadFilter;
   String? get selectedEstadoFilter => _selectedEstadoFilter;
 
   final Set<Employee> _selectedForCertificados = {};
   Set<Employee> get selectedForCertificados => _selectedForCertificados;
 
-  // 🔥 1. NUEVA VARIABLE EXCLUSIVA PARA MASIVO (No rompe el Dashboard)
   List<Employee> _empleadosMasivo = [];
   List<Employee> get empleadosMasivo => _empleadosMasivo;
 
@@ -59,24 +65,12 @@ class EmployeeProvider extends ChangeNotifier {
   }
 
   int get totalEmployees => _allEmployees.length;
-  int get totalActivos =>
-      _allEmployees.where((e) => e.colorEstado == Colors.green).length;
-  int get totalPendientes => _allEmployees
-      .where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO")
-      .length;
-  int get printedCredentials => _allEmployees
-      .where((e) => e.estadoActual.toUpperCase() == "CREDENCIAL IMPRESO")
-      .length;
-  int get pendingRequests => _allEmployees
-      .where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO")
-      .length;
-  List<Employee> get pendingPrintingEmployees => _allEmployees
-      .where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO")
-      .toList();
+  int get totalActivos => _allEmployees.where((e) => e.colorEstado == Colors.green).length;
+  int get totalPendientes => _allEmployees.where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO").length;
+  int get printedCredentials => _allEmployees.where((e) => e.estadoActual.toUpperCase() == "CREDENCIAL IMPRESO").length;
+  int get pendingRequests => _allEmployees.where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO").length;
+  List<Employee> get pendingPrintingEmployees => _allEmployees.where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO").toList();
 
-  // =====================================
-  // FETCH PRINCIPAL: RESTAURADO PARA TODA LA APP
-  // =====================================
   Future<void> fetchEmployees() async {
     final prefs = await SharedPreferences.getInstance();
     final String? cachedJson = prefs.getString('personal_cache');
@@ -92,7 +86,6 @@ class EmployeeProvider extends ChangeNotifier {
     }
 
     try {
-      // 🔥 RESTAURADO: Usa /detalles para que el Panel de Administración y Credenciales funcionen perfecto
       final url = Uri.parse('$_baseUrl/api/personal/detalles');
       final response = await http.get(url, headers: Environment.authHeaders);
 
@@ -102,7 +95,6 @@ class EmployeeProvider extends ChangeNotifier {
 
         _allEmployees = await compute(parseEmployeesInBackground, jsonString);
 
-        // Limpia a los que ya cerramos visualmente
         _allEmployees = _allEmployees.map((emp) {
           if (_contratosCerradosVisualmente.contains(emp.id)) {
             return emp.copyWith(estadoActual: "CONTRATO TERMINADO");
@@ -121,12 +113,8 @@ class EmployeeProvider extends ChangeNotifier {
     }
   }
 
-  // =====================================
-  // 🔥 FETCH AISLADO: SOLO PARA IMPRESIÓN MASIVA
-  // =====================================
   Future<void> fetchPersonalParaMasivo() async {
     try {
-      // Este endpoint carga a todos (activos e inactivos) pero se guarda en una lista aparte
       final url = Uri.parse('$_baseUrl/api/personal/detalles/sindiscrimiar');
       final response = await http.get(url, headers: Environment.authHeaders);
 
@@ -143,7 +131,6 @@ class EmployeeProvider extends ChangeNotifier {
     }
   }
 
-  // Actualización local rápida
   void updateEmployeeLocal(Employee updatedEmployee) {
     final index = _allEmployees.indexWhere((e) => e.id == updatedEmployee.id);
     if (index != -1) {
@@ -164,14 +151,27 @@ class EmployeeProvider extends ChangeNotifier {
   void _actualizarListasSecundarias() {
     _unidadesDisponibles.clear();
     _estadosDisponibles.clear();
-    _cargosDisponibles.clear();
+    _cargosPorUnidad.clear();
 
     for (var emp in _allEmployees) {
-      if (emp.unidad.isNotEmpty) _unidadesDisponibles.add(emp.unidad);
-      if (emp.estadoActual.isNotEmpty)
-        _estadosDisponibles.add(emp.estadoActual);
-      if (emp.cargo.isNotEmpty) _cargosDisponibles.add(emp.cargo);
+      if (emp.unidad.isNotEmpty) {
+        _unidadesDisponibles.add(emp.unidad);
+        // Construimos el mapa relacional
+        if (emp.cargo.isNotEmpty) {
+          if (!_cargosPorUnidad.containsKey(emp.unidad)) {
+            _cargosPorUnidad[emp.unidad] = [];
+          }
+          if (!_cargosPorUnidad[emp.unidad]!.contains(emp.cargo)) {
+            _cargosPorUnidad[emp.unidad]!.add(emp.cargo);
+          }
+        }
+      }
+      if (emp.estadoActual.isNotEmpty) _estadosDisponibles.add(emp.estadoActual);
     }
+    
+    // Ordenar alfabéticamente los cargos para mejor UX
+    _cargosPorUnidad.forEach((key, value) => value.sort());
+    
     _applyFilters();
   }
 
@@ -184,13 +184,13 @@ class EmployeeProvider extends ChangeNotifier {
             emp.nombreCompleto.toLowerCase().contains(lowerQuery) ||
             emp.carnetIdentidad.contains(_searchQuery);
       }
-      bool matchesUnidad =
-          _selectedUnidadFilter == null || emp.unidad == _selectedUnidadFilter;
-      bool matchesEstado =
-          _selectedEstadoFilter == null ||
-          emp.estadoActual == _selectedEstadoFilter;
+      bool matchesUnidad = _selectedUnidadFilter == null || emp.unidad == _selectedUnidadFilter;
+      bool matchesEstado = _selectedEstadoFilter == null || emp.estadoActual == _selectedEstadoFilter;
+      
+      // 🔥 Validación del nuevo filtro
+      bool matchesCargo = _selectedCargoFilter == null || emp.cargo == _selectedCargoFilter;
 
-      return matchesSearch && matchesUnidad && matchesEstado;
+      return matchesSearch && matchesUnidad && matchesEstado && matchesCargo;
     }).toList();
     notifyListeners();
   }
@@ -200,8 +200,15 @@ class EmployeeProvider extends ChangeNotifier {
     _applyFilters();
   }
 
+  void setUnidadYCargo(String? unidad, String? cargo) {
+    _selectedUnidadFilter = unidad;
+    _selectedCargoFilter = cargo;
+    _applyFilters();
+  }
+
   void toggleUnidadFilter(String unidad) {
     _selectedUnidadFilter = _selectedUnidadFilter == unidad ? null : unidad;
+    _selectedCargoFilter = null; // Limpia el cargo si se cambia la unidad manualmente
     _applyFilters();
   }
 
@@ -213,6 +220,7 @@ class EmployeeProvider extends ChangeNotifier {
   void clearFilters() {
     _searchQuery = '';
     _selectedUnidadFilter = null;
+    _selectedCargoFilter = null;
     _selectedEstadoFilter = null;
     _applyFilters();
   }
@@ -231,15 +239,9 @@ class EmployeeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // =========================================================================================
-  // ACTUALIZACIONES HTTP (INTACTAS)
-  // =========================================================================================
-
   Future<bool> markAsPrinted(Employee emp) async {
     try {
-      final url = Uri.parse(
-        '$_baseUrl/api/estados-personal/${emp.id}/imprimir-credencial',
-      );
+      final url = Uri.parse('$_baseUrl/api/estados-personal/${emp.id}/imprimir-credencial');
       final response = await http.put(url, headers: Environment.authHeaders);
       if (response.statusCode == 200 || response.statusCode == 201) {
         updateEmployeeLocal(emp.copyWith(estadoActual: "CREDENCIAL IMPRESO"));
@@ -251,38 +253,51 @@ class EmployeeProvider extends ChangeNotifier {
     }
   }
 
+  // =========================================================================
+  // 🔥 NUEVO MÉTODO OPTIMIZADO: MARCAR COMO ACTIVO MASIVO
+  // Usa el endpoint que recibe el array de IDs en una sola petición HTTP
+  // =========================================================================
   Future<bool> marcarComoActivoMasivo(List<Employee> empleados) async {
-    bool exitoGeneral = true;
-    for (var emp in empleados) {
-      try {
-        final url = Uri.parse(
-          '$_baseUrl/api/estados-personal/${emp.id}/entregar-credencial',
-        );
-        final response = await http.put(url, headers: Environment.authHeaders);
-        if (response.statusCode == 200 || response.statusCode == 201) {
+    if (empleados.isEmpty) return false;
+
+    try {
+      final url = Uri.parse('$_baseUrl/api/estados-personal/entregar-credencial/masivo');
+      
+      // Extraemos solo los IDs de la lista de empleados
+      final List<int> personalIds = empleados.map((emp) => emp.id).toList();
+
+      final response = await http.put(
+        url,
+        headers: Environment.authHeaders,
+        body: jsonEncode({
+          "personalIds": personalIds,
+          "observacion": "Habilitación masiva desde panel de administración"
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Si el servidor responde OK, actualizamos todos localmente para no tener que recargar todo
+        for (var emp in empleados) {
           updateEmployeeLocal(emp.copyWith(estadoActual: "PERSONA ACTIVA"));
-        } else {
-          exitoGeneral = false;
         }
-      } catch (e) {
-        exitoGeneral = false;
+        return true;
+      } else {
+        return false;
       }
+    } catch (e) {
+      print('Error al hacer petición masiva: $e');
+      return false;
     }
-    return exitoGeneral;
   }
 
   Future<bool> marcarCredencialDevueltaMasivo(List<Employee> empleados) async {
     bool exitoGeneral = true;
     for (var emp in empleados) {
       try {
-        final url = Uri.parse(
-          '$_baseUrl/api/estados-personal/${emp.id}/devolver-credencial',
-        );
+        final url = Uri.parse('$_baseUrl/api/estados-personal/${emp.id}/devolver-credencial');
         final response = await http.put(url, headers: Environment.authHeaders);
         if (response.statusCode == 200 || response.statusCode == 201) {
-          updateEmployeeLocal(
-            emp.copyWith(estadoActual: "CREDENCIAL DEVUELTO"),
-          );
+          updateEmployeeLocal(emp.copyWith(estadoActual: "CREDENCIAL DEVUELTO"));
         } else {
           exitoGeneral = false;
         }
@@ -293,15 +308,9 @@ class EmployeeProvider extends ChangeNotifier {
     return exitoGeneral;
   }
 
-  Future<bool> registrarFechasProceso(
-    int personalId,
-    DateTime fechaInicio,
-    DateTime fechaFin,
-  ) async {
+  Future<bool> registrarFechasProceso(int personalId, DateTime fechaInicio, DateTime fechaFin) async {
     try {
-      final url = Uri.parse(
-        '$_baseUrl/api/historiales-cargo-proceso/personal/$personalId/historial-activo',
-      );
+      final url = Uri.parse('$_baseUrl/api/historiales-cargo-proceso/personal/$personalId/historial-activo');
       final response = await http.put(
         url,
         headers: Environment.authHeaders,
@@ -312,15 +321,11 @@ class EmployeeProvider extends ChangeNotifier {
         }),
       );
 
-      if (response.statusCode == 200 ||
-          response.statusCode == 201 ||
-          response.statusCode == 204) {
+      if (response.statusCode == 200 || response.statusCode == 201 || response.statusCode == 204) {
         _contratosCerradosVisualmente.add(personalId);
         final index = _allEmployees.indexWhere((e) => e.id == personalId);
         if (index != -1) {
-          updateEmployeeLocal(
-            _allEmployees[index].copyWith(estadoActual: "CONTRATO TERMINADO"),
-          );
+          updateEmployeeLocal(_allEmployees[index].copyWith(estadoActual: "CONTRATO TERMINADO"));
         }
         return true;
       }
@@ -333,12 +338,7 @@ class EmployeeProvider extends ChangeNotifier {
   Future<bool> registrarNuevoContrato(Employee emp, int nuevoCargoId) async {
     try {
       final url = Uri.parse('$_baseUrl/api/historiales-cargo-proceso');
-
-      // Usamos la hora exacta actual menos 2 minutos para evitar el error 400
-      final String fechaSegura = DateTime.now()
-          .subtract(const Duration(minutes: 2))
-          .toUtc()
-          .toIso8601String();
+      final String fechaSegura = DateTime.now().subtract(const Duration(minutes: 2)).toUtc().toIso8601String();
 
       final payload = {
         "cargoProcesoId": nuevoCargoId,
@@ -347,22 +347,13 @@ class EmployeeProvider extends ChangeNotifier {
         "activo": true,
       };
 
-      final response = await http.post(
-        url,
-        headers: Environment.authHeaders,
-        body: jsonEncode(payload),
-      );
+      final response = await http.post(url, headers: Environment.authHeaders, body: jsonEncode(payload));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         _contratosCerradosVisualmente.remove(emp.id);
-
-        // 🔥 NUEVO PASO: Cambiamos el estado a "PERSONAL REGISTRADO"
         await reiniciarEstadoRegistrado(emp.id);
-
-        // Actualizamos las listas para que la UI se refresque
         await fetchEmployees();
         await fetchPersonalParaMasivo();
-
         return true;
       }
       return false;
@@ -373,16 +364,12 @@ class EmployeeProvider extends ChangeNotifier {
 
   Future<bool> reiniciarEstadoRegistrado(int personalId) async {
     try {
-      final url = Uri.parse(
-        '$_baseUrl/api/estados-personal/$personalId/estado-registrado',
-      );
+      final url = Uri.parse('$_baseUrl/api/estados-personal/$personalId/estado-registrado');
       final response = await http.put(url, headers: Environment.authHeaders);
       if (response.statusCode == 200 || response.statusCode == 201) {
         final index = _allEmployees.indexWhere((e) => e.id == personalId);
         if (index != -1) {
-          updateEmployeeLocal(
-            _allEmployees[index].copyWith(estadoActual: "PERSONAL REGISTRADO"),
-          );
+          updateEmployeeLocal(_allEmployees[index].copyWith(estadoActual: "PERSONAL REGISTRADO"));
         }
         return true;
       }
@@ -392,10 +379,7 @@ class EmployeeProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateEmployee(
-    int empleadoId,
-    Map<String, dynamic> newData,
-  ) async {
+  Future<bool> updateEmployee(int empleadoId, Map<String, dynamic> newData) async {
     try {
       final url = Uri.parse('$_baseUrl/api/personal/$empleadoId/admin');
       final response = await http.put(
@@ -454,10 +438,8 @@ class EmployeeProvider extends ChangeNotifier {
         Uri.parse('$_baseUrl/api/personal/por/circunscripcion/$cir'),
         headers: Environment.authHeaders,
       );
-      if (response.statusCode == 200)
-        _reportData = json.decode(utf8.decode(response.bodyBytes));
-    } catch (e) {
-    } finally {
+      if (response.statusCode == 200) _reportData = json.decode(utf8.decode(response.bodyBytes));
+    } catch (e) {} finally {
       _isLoading = false;
       notifyListeners();
     }
@@ -470,44 +452,30 @@ class EmployeeProvider extends ChangeNotifier {
 
   Future<List<dynamic>> obtenerHistorialPersonal(int personalId) async {
     try {
-      final url = Uri.parse(
-        '$_baseUrl/api/historiales-cargo-proceso/personal/$personalId',
-      );
+      final url = Uri.parse('$_baseUrl/api/historiales-cargo-proceso/personal/$personalId');
       final response = await http.get(url, headers: Environment.authHeaders);
-      if (response.statusCode == 200)
-        return json.decode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      if (response.statusCode == 200) return json.decode(utf8.decode(response.bodyBytes)) as List<dynamic>;
       return [];
     } catch (e) {
       return [];
     }
   }
 
-  // =====================================================================================
-  // 🔥 ESTE ES EL ÚNICO MÉTODO NUEVO: Exclusivo para la pantalla de Cierres (Certificados)
-  // =====================================================================================
   Future<void> fetchPersonalActivo() async {
     _isLoading = true;
     notifyListeners();
-
     try {
-      // Este endpoint carga solo a los que tienen contrato activo
       final url = Uri.parse('$_baseUrl/api/personal/detalles');
       final response = await http.get(url, headers: Environment.authHeaders);
-
       if (response.statusCode == 200) {
         final String jsonString = utf8.decode(response.bodyBytes);
-
-        // Convertimos los datos del servidor sin afectar la caché de credenciales
         _allEmployees = await compute(parseEmployeesInBackground, jsonString);
-
-        // Aplicamos la memoria visual por si acabamos de cerrar uno en esta sesión
         _allEmployees = _allEmployees.map((emp) {
           if (_contratosCerradosVisualmente.contains(emp.id)) {
             return emp.copyWith(estadoActual: "CONTRATO TERMINADO");
           }
           return emp;
         }).toList();
-
         _actualizarListasSecundarias();
       }
     } catch (e) {
@@ -517,34 +485,19 @@ class EmployeeProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-  // =========================================================================================
-  // 🔥 NUEVOS MÉTODOS PARA ACCESO A CÓMPUTO
-  // =========================================================================================
-
-  // =========================================================================================
-  // 🔥 MÉTODOS PARA ACCESO A CÓMPUTO (ENDPOINTS ACTUALIZADOS)
-  // =========================================================================================
 
   Future<bool> cambiarAccesoComputo(int personalId, bool tieneAcceso) async {
     try {
-      // NUEVA URL: 1 por 1
       final url = Uri.parse('$_baseUrl/api/personal/$personalId/acceso');
-
-      // Como ahora es una sola ruta para dar o quitar acceso, le mandamos el estado deseado en el body
-      // *Nota: Si tu backend espera este booleano como parámetro en la URL o con otro nombre en el JSON,
-      // solo avísame y lo ajustamos en un segundo.
       final response = await http.put(
         url,
         headers: Environment.authHeaders,
         body: jsonEncode({"accesoComputo": tieneAcceso}),
       );
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         final index = _allEmployees.indexWhere((e) => e.id == personalId);
         if (index != -1) {
-          updateEmployeeLocal(
-            _allEmployees[index].copyWith(accesoComputo: tieneAcceso),
-          );
+          updateEmployeeLocal(_allEmployees[index].copyWith(accesoComputo: tieneAcceso));
         }
         return true;
       }
@@ -556,9 +509,7 @@ class EmployeeProvider extends ChangeNotifier {
 
   Future<bool> habilitarComputoMasivo(List<int> personalIds) async {
     try {
-      // NUEVA URL: Masivo
       final url = Uri.parse('$_baseUrl/api/personal/accesoMasivo');
-
       final response = await http.put(
         url,
         headers: Environment.authHeaders,
@@ -567,15 +518,11 @@ class EmployeeProvider extends ChangeNotifier {
           "observacion": "Habilitación masiva desde panel de Cómputo",
         }),
       );
-
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Actualizamos localmente
         for (var id in personalIds) {
           final index = _allEmployees.indexWhere((e) => e.id == id);
           if (index != -1) {
-            _allEmployees[index] = _allEmployees[index].copyWith(
-              accesoComputo: true,
-            );
+            _allEmployees[index] = _allEmployees[index].copyWith(accesoComputo: true);
           }
         }
         _applyFilters();
@@ -587,23 +534,17 @@ class EmployeeProvider extends ChangeNotifier {
       return false;
     }
   }
-  // =========================================================================================
-  // 🔥 MÉTODO PARA ACTUALIZAR LA IMAGEN DE PERFIL DIRECTO
-  // =========================================================================================
+
   Future<bool> actualizarImagenPerfil(int personalId, int imagenId, XFile nuevaImagen) async {
     try {
       final url = Uri.parse('$_baseUrl/api/personal/admin/$personalId/imagen/$imagenId');
-      
       var request = http.MultipartRequest('PUT', url);
-      
-      // Agregamos el token de autorización
       request.headers.addAll(Environment.authHeaders);
       
-      // Adjuntamos el archivo
       final fileBytes = await nuevaImagen.readAsBytes();
       request.files.add(
         http.MultipartFile.fromBytes(
-          'file', // Nombre del parámetro que espera Spring Boot
+          'file',
           fileBytes,
           filename: 'foto_perfil_${personalId}.jpg',
         ),
@@ -613,8 +554,6 @@ class EmployeeProvider extends ChangeNotifier {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // La API nos devuelve la URL de la nueva imagen o el empleado actualizado
-        // Refrescamos toda la lista para que cambie en todas partes (tabla, etc.)
         await fetchEmployees();
         return true;
       }
@@ -624,9 +563,8 @@ class EmployeeProvider extends ChangeNotifier {
       return false;
     }
   }
-} // <--- AQUÍ TERMINA LA CLASE EMPLOYEE PROVIDER
+}
 
-// 👇 ESTA FUNCIÓN DEBE IR AFUERA, AL FINAL DE TODO
 List<Employee> parseEmployeesInBackground(String responseBody) {
   final List<dynamic> decoded = json.decode(responseBody);
   return decoded.map((e) => Employee.fromJson(e)).toList();

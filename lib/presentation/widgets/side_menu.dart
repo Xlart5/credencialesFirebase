@@ -153,6 +153,15 @@ class SideMenu extends StatelessWidget {
                     context.go('/acceso/externos/salida');
                   },
                 ),
+                _DrawerItem(
+                  icon: Icons.history_rounded,
+                  text: "Historial de Acceso",
+                  isActive: location == '/acceso/Historial',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/acceso/Historial');
+                  },
+                ),
 
                 const Divider(height: 30), // Separador visual
                 // 🔥 SECCIÓN: OTROS

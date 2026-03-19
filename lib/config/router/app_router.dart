@@ -1,7 +1,9 @@
 import 'package:carnetizacion/presentation/screens/certificados_masivo_screen.dart';
 import 'package:carnetizacion/presentation/screens/certificados_screen.dart';
 import 'package:carnetizacion/presentation/screens/generar_qrs_screen.dart';
+import 'package:carnetizacion/presentation/screens/historial_screen.dart';
 import 'package:carnetizacion/presentation/screens/monitor_externo_screen.dart';
+import 'package:carnetizacion/presentation/widgets/historial_personal_sheet.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -119,6 +121,11 @@ final appRouter = GoRouter(
       path: '/acceso/eventuales',
       builder: (context, state) =>
           const MonitorScreen(tipoPuerta: 'eventuales'),
+    ),
+    GoRoute(
+      path: '/acceso/Historial',
+      builder: (context, state) =>
+          const HistorialScreen()
     ),
     GoRoute(
       path: '/generar-Externos',

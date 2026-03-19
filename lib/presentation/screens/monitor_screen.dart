@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 class MonitorScreen extends StatefulWidget {
-  final String tipoPuerta; // 🔥 NUEVO: Recibe 'externos' o 'eventuales'
+  final String tipoPuerta; // 🔥 Recibe 'externos_entrada', 'externos_salida' o 'eventuales'
 
   const MonitorScreen({super.key, required this.tipoPuerta});
 
@@ -28,7 +28,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
   void initState() {
     super.initState();
 
-    // 🔥 AHORA ESCUCHA AL CANAL ESPECÍFICO DE ESA PUERTA
+    // 🔥 ESCUCHA AL CANAL ESPECÍFICO DE ESA PUERTA
     _dbRef = FirebaseDatabase.instanceFor(
       app: Firebase.app(),
       databaseURL: 'https://credenciales-f2be2-default-rtdb.firebaseio.com',
@@ -40,7 +40,8 @@ class _MonitorScreenState extends State<MonitorScreen> {
 
   void _configurarVoz() async {
     await _flutterTts.setLanguage("es-ES");
-    await _flutterTts.awaitSpeakCompletion(true);
+    // 🔥 CAMBIO CLAVE: Lo ponemos en 'false' para que el código NO ESPERE a que termine de hablar
+    await _flutterTts.awaitSpeakCompletion(false);
   }
 
   void _escucharFirebase() {
@@ -79,8 +80,11 @@ class _MonitorScreenState extends State<MonitorScreen> {
       });
     }
 
-    await _hablar(dataPersona);
-    await Future.delayed(const Duration(seconds: 4));
+    // 🔥 Quitamos el 'await' para que lance el audio y siga de largo sin frenarse
+    _hablar(dataPersona);
+    
+    // 🔥 CAMBIO CLAVE: Esperamos SOLO 1 SEGUNDO
+    await Future.delayed(const Duration(seconds: 2));
 
     if (mounted) setState(() => _esperando = true);
     _procesandoCola = false;
@@ -116,6 +120,15 @@ class _MonitorScreenState extends State<MonitorScreen> {
     super.dispose();
   }
 
+  Widget _buildLogoTed(double size) {
+    return Image.asset(
+      'assets/images/logo_ted.png',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_esperando) {
@@ -125,10 +138,10 @@ class _MonitorScreenState extends State<MonitorScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.qr_code_scanner, color: Colors.amber, size: 100),
-              const SizedBox(height: 20),
+              _buildLogoTed(200.0),
+              const SizedBox(height: 30),
               Text(
-                "MONITOR: PUERTA ${widget.tipoPuerta.toUpperCase()}", // 🔥 Muestra de qué puerta es
+                "MONITOR: PUERTA ${widget.tipoPuerta.toUpperCase()}", 
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 30,
@@ -147,6 +160,18 @@ class _MonitorScreenState extends State<MonitorScreen> {
                   fontSize: 18,
                 ),
               ),
+              const SizedBox(height: 40),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.circle, color: Colors.greenAccent, size: 12),
+                  SizedBox(width: 8),
+                  Text(
+                    "Conectado a Firebase RTDB",
+                    style: TextStyle(color: Colors.greenAccent),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -157,14 +182,13 @@ class _MonitorScreenState extends State<MonitorScreen> {
     final bool acceso = _persona['accesoComputo'] == true;
     final String tipoRegistro =
         _persona['tipoRegistro']?.toString().toLowerCase() ?? 'entrada';
+        
     final Color bgColor = acceso
         ? (tipoRegistro == 'salida'
               ? const Color(0xFF64B5F6)
               : const Color(0xFFFFD54F))
         : Colors.redAccent;
-    final IconData mainIcon = acceso
-        ? (tipoRegistro == 'salida' ? Icons.exit_to_app : Icons.verified_user)
-        : Icons.cancel;
+        
     final String title = acceso
         ? (tipoRegistro == 'salida'
               ? "REGISTRO DE\nSALIDA"
@@ -177,11 +201,7 @@ class _MonitorScreenState extends State<MonitorScreen> {
         child: Column(
           children: [
             SizedBox(height: size.height * 0.05),
-            Icon(
-              mainIcon,
-              size: size.height * 0.15,
-              color: const Color(0xFF1E293B),
-            ),
+            _buildLogoTed(size.height * 0.18),
             SizedBox(height: size.height * 0.02),
             Text(
               title,
