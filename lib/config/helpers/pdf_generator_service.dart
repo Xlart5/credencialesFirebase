@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart'; // 🔥 OBLIGATORIO PARA EL COMPUTE
+import 'package:flutter/foundation.dart'; 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
@@ -17,18 +17,11 @@ class PdfGeneratorService {
   static Future<Uint8List> generateCredentialsPdf(
     List<Employee> employees,
   ) async {
-    // Leemos los archivos de la carpeta assets aquí, porque el "sótano" (Isolate)
-    // no tiene acceso a las carpetas del sistema.
-    final frontData = await rootBundle.load(
-      'assets/images/card_template_front.png',
-    );
-    final backData = await rootBundle.load(
-      'assets/images/ATRAS_EVENTUAL_2025.png',
-    );
+    final frontData = await rootBundle.load('assets/images/card_template_front.png');
+    final backData = await rootBundle.load('assets/images/ATRAS_EVENTUAL_2025.png');
     final tedData = await rootBundle.load('assets/images/logo_ted.png');
     final elecData = await rootBundle.load('assets/images/logo_elecciones.png');
 
-    // Metemos los bytes puros y los empleados en un Map (Una caja)
     final Map<String, dynamic> dataAEnviar = {
       'employees': employees,
       'frontBytes': frontData.buffer.asUint8List(),
@@ -37,7 +30,6 @@ class PdfGeneratorService {
       'elecBytes': elecData.buffer.asUint8List(),
     };
 
-    // Mandamos todo al procesador secundario con compute
     return await compute(_generarPdfEnSotano, dataAEnviar);
   }
 
@@ -47,10 +39,8 @@ class PdfGeneratorService {
   static Future<Uint8List> _generarPdfEnSotano(
     Map<String, dynamic> data,
   ) async {
-    // 1. Desempacamos la caja
     final employees = data['employees'] as List<Employee>;
 
-    // 2. Reconstruimos las imágenes fijas en la memoria del sótano
     final templateFront = pw.MemoryImage(data['frontBytes']);
     final templateBack = pw.MemoryImage(data['backBytes']);
     final logoTed = pw.MemoryImage(data['tedBytes']);
@@ -68,12 +58,9 @@ class PdfGeneratorService {
             : employees.length,
       );
 
-      // --- 🚀 OPTIMIZACIÓN DE DESCARGAS (SOLO FOTOS) ---
-      // Ya no descargamos QRs, solo descargamos las fotos de los usuarios.
       final photosFuture = Future.wait(
         chunk.map((emp) async {
-          if (emp.photoUrl.isEmpty)
-            return logoTed; // Si no hay foto, ponemos el logo del TED por defecto
+          if (emp.photoUrl.isEmpty) return logoTed;
           try {
             final res = await http.get(Uri.parse(emp.photoUrl));
             if (res.statusCode == 200) return pw.MemoryImage(res.bodyBytes);
@@ -82,7 +69,6 @@ class PdfGeneratorService {
         }),
       );
 
-      // Esperamos a que todas las fotos del lote se descarguen
       final List<pw.ImageProvider> photos = await photosFuture;
 
       // --- PÁGINA 1: FRENTE ---
@@ -158,15 +144,16 @@ class PdfGeneratorService {
     pw.ImageProvider logoTed,
     pw.ImageProvider logoElec,
   ) {
-    // LA MAGIA CONDICIONAL
     final String cargoMinusculas = emp.cargo.toString().toLowerCase();
 
-    // 🔥 VALIDACIONES DE CARGO
+    // 🔥 VALIDACIONES
     final bool esCoordinadorNotario = cargoMinusculas.contains('coordinador') && cargoMinusculas.contains('notari');
     final bool esNotarioNormal = cargoMinusculas.contains('notari') && !esCoordinadorNotario;
     final bool esJuez = cargoMinusculas.contains('juez');
+    
+    // 🔥 NUEVA VALIDACIÓN PARA PLANTA
+    final bool esPlanta = emp.tipo.toString().toUpperCase() == 'PLANTA';
 
-    // Validación de seguridad para el QR
     final String qrData = emp.qrUrl.isNotEmpty ? emp.qrUrl : "SIN_QR_ASIGNADO";
 
     return pw.Container(
@@ -183,11 +170,9 @@ class PdfGeneratorService {
 
           // 2. LÓGICA DE LA ESQUINA
           pw.Positioned(
-            // 🔥 Subimos un poquito el bloque si es coordinador para que entre la etiqueta debajo
             top: esCoordinadorNotario ? 34 : 40, 
             left: 30,
             child: esNotarioNormal
-                // SI ES NOTARIO NORMAL: Cajita de Circunscripción gigante
                 ? pw.Container(
                     width: 70,
                     height: 70,
@@ -208,27 +193,24 @@ class PdfGeneratorService {
                     ),
                   )
                 : esCoordinadorNotario
-                // 🔥 SI ES COORDINADOR: Mostramos el QR intacto y una etiqueta debajo
                 ? pw.Container(
                     width: 60,
                     child: pw.Column(
                       mainAxisSize: pw.MainAxisSize.min,
                       crossAxisAlignment: pw.CrossAxisAlignment.center,
                       children: [
-                        // El QR 100% limpio
                         pw.Container(
                           color: PdfColors.white,
                           child: pw.BarcodeWidget(
                             barcode: pw.Barcode.qrCode(),
                             data: qrData,
-                            width: 52, // Ligeramente más pequeño para que entre el texto abajo
+                            width: 52, 
                             height: 52,
                             color: PdfColors.black,
                             backgroundColor: PdfColors.white,
                           ),
                         ),
                         pw.SizedBox(height: 2),
-                        // Etiqueta negra con letras blancas estilo "Placa"
                         pw.Container(
                           padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                           decoration: pw.BoxDecoration(
@@ -236,7 +218,7 @@ class PdfGeneratorService {
                             borderRadius: pw.BorderRadius.circular(3),
                           ),
                           child: pw.Text(
-                             emp.Circu,
+                              emp.Circu,
                             style: pw.TextStyle(
                               fontSize: 7,
                               fontWeight: pw.FontWeight.bold,
@@ -248,7 +230,6 @@ class PdfGeneratorService {
                     ),
                   )
                 : esJuez
-                // SI ES JUEZ: Mostramos texto en vez del QR
                 ? pw.Container(
                     width: 80, 
                     height: 60,
@@ -279,7 +260,6 @@ class PdfGeneratorService {
                       ],
                     ),
                   )
-                // SI ES OTRO CARGO: Mostramos el QR normal
                 : pw.Container(
                     width: 60,
                     height: 60,
@@ -295,16 +275,27 @@ class PdfGeneratorService {
                   ),
           ),
 
-          // 3. Logo TED
-          pw.Positioned(
-            top: 110,
-            left: 78,
-            child: pw.Container(
-              width: 20,
-              height: 20,
-              child: pw.Image(logoTed),
+          // 3. Logo TED (Reacomodado dinámicamente)
+          if (esPlanta)
+            pw.Positioned(
+              bottom: 25,
+              left: 45, // 🔥 Centrado perfectamente debajo del QR
+              child: pw.Container(
+                width: 30, // Un poco más grande para que luzca bien solo
+                height: 30,
+                child: pw.Image(logoTed),
+              ),
+            )
+          else
+            pw.Positioned(
+              top: 110,
+              left: 78,
+              child: pw.Container(
+                width: 20,
+                height: 20,
+                child: pw.Image(logoTed),
+              ),
             ),
-          ),
 
           // 4. FOTO
           pw.Positioned(
@@ -364,14 +355,15 @@ class PdfGeneratorService {
             ),
           ),
 
-          // 6. Logo Elecciones
-          pw.Positioned(
-            bottom: 28,
-            left: 10,
-            child: pw.Container(width: 45, child: pw.Image(logoElec)),
-          ),
+          // 6. Logo Elecciones (Oculto si es Planta)
+          if (!esPlanta)
+            pw.Positioned(
+              bottom: 28,
+              left: 10,
+              child: pw.Container(width: 45, child: pw.Image(logoElec)),
+            ),
 
-          // 7. Barra Negra
+          // 7. Barra Negra (Texto dinámico)
           pw.Positioned(
             bottom: 0,
             left: 0,
@@ -384,7 +376,8 @@ class PdfGeneratorService {
                 mainAxisAlignment: pw.MainAxisAlignment.center,
                 children: [
                   pw.Text(
-                    "Personal Eventual",
+                    // 🔥 Cambiamos el texto dinámicamente
+                    esPlanta ? "SERVIDOR PÚBLICO" : "Personal Eventual",
                     style: pw.TextStyle(
                       color: PdfColors.white,
                       fontSize: 6.5,

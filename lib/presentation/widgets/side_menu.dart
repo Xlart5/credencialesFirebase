@@ -1,3 +1,4 @@
+import 'package:carnetizacion/config/provider/employee_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -160,6 +161,24 @@ class SideMenu extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     context.go('/acceso/Historial');
+                  },
+                ),
+                _DrawerItem(
+                  icon: Icons.history_rounded,
+                  text: "mIGRAR",
+                  isActive: location == '/acceso/Historial',
+                  onTap: () async{
+                    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Iniciando migración a Firebase...'))
+    );
+    
+    // Llamas a la función del Provider
+    await context.read<EmployeeProvider>().migrarEventualesAFirebase();
+    
+    // Y un mensaje cuando termine
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Migración completada con éxito.'))
+    );
                   },
                 ),
 

@@ -5,10 +5,9 @@ import 'package:printing/printing.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class ReportePdfService {
-  static Future<void> generarReporteAccesos(List<Map<String, dynamic>> datosFiltrados, String tituloFiltro) async {
+  static Future<void> generarReporteAccesos(List<Map<String, dynamic>> datosFiltrados, String tituloFiltro, String fechaFiltro) async {
     final pdf = pw.Document();
 
-    // Intentamos cargar el logo
     pw.ImageProvider? logoTed;
     try {
       final logoData = await rootBundle.load('assets/images/logo_ted.png');
@@ -17,7 +16,7 @@ class ReportePdfService {
 
     pdf.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.a4, // Usamos formato vertical para listas
+        pageFormat: PdfPageFormat.a4, 
         margin: const pw.EdgeInsets.all(30),
         header: (pw.Context context) {
           return pw.Column(
@@ -52,20 +51,24 @@ class ReportePdfService {
             return content;
           }
 
-          // Recorremos a cada persona para crearle su propia tabla de historial
           for (int i = 0; i < datosFiltrados.length; i++) {
             final p = datosFiltrados[i];
             final bool estaAdentro = p['estaAdentro'] == true;
             
-            // Texto detallado del cargo
-            String detalleCargo = p['tipo'] ?? '';
-            if (p['tipo'] == 'EVENTUAL') {
+            String rol = p['tipo'] ?? '';
+            String detalleCargo = rol;
+            if (rol == 'EVENTUAL') {
               detalleCargo += " - ${p['unidad']} (${p['cargo']})";
+            } else if (rol == 'DELEGADO' || rol == 'CANDIDATO') {
+              if ((p['partidoPolitico'] ?? '').isNotEmpty) {
+                detalleCargo += " - Partido: ${p['partidoPolitico']}";
+              }
+            } else if (rol == 'OBSERVADOR') {
+              if ((p['asociacion'] ?? '').isNotEmpty) {
+                detalleCargo += " - Org: ${p['asociacion']}";
+              }
             }
 
-            // ===============================================
-            // LÓGICA DE EMPAREJAMIENTO (Entrada -> Salida)
-            // ===============================================
             List<dynamic> accesosRaw = p['historialAccesos'] ?? [];
             accesosRaw.sort((a, b) => a['timestamp'].compareTo(b['timestamp']));
 
@@ -86,9 +89,6 @@ class ReportePdfService {
               pares.add({'entrada': entradaPendiente, 'salida': null});
             }
 
-            // ===============================================
-            // CONSTRUIR LA SUB-TABLA DE LA PERSONA
-            // ===============================================
             pw.Widget historyWidget;
             if (pares.isEmpty) {
               historyWidget = pw.Text("Sin registros de acceso.", style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey));
@@ -102,9 +102,17 @@ class ReportePdfService {
                 final ent = par['entrada'];
                 final sal = par['salida'];
 
+                // 🔥 FILTRAMOS POR FECHA LÓGICA (EL TURNO)
+                if (fechaFiltro != 'TODAS') {
+                  String logicaEnt = ent != null ? ent['fechaLogica'] : '---';
+                  String logicaSal = sal != null ? sal['fechaLogica'] : '---';
+                  // Si ni la entrada ni la salida pertenecen a esa jornada, ignoramos el registro
+                  if (logicaEnt != fechaFiltro && logicaSal != fechaFiltro) continue;
+                }
+
                 tableData.add([
                   cont.toString(),
-                  ent != null ? ent['fecha'] : '---',
+                  ent != null ? ent['fecha'] : '---', // Seguimos imprimiendo la fecha real
                   ent != null ? ent['hora'] : '---',
                   sal != null ? sal['fecha'] : '---',
                   sal != null ? sal['hora'] : (estaAdentro ? 'Sigue Adentro' : '---'),
@@ -112,27 +120,28 @@ class ReportePdfService {
                 cont++;
               }
 
-              historyWidget = pw.TableHelper.fromTextArray(
-                headers: tableData.first,
-                data: tableData.sublist(1),
-                border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 8),
-                headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF37474F)), // Gris oscuro elegante
-                cellStyle: const pw.TextStyle(fontSize: 8),
-                cellAlignment: pw.Alignment.center,
-                columnWidths: {
-                  0: const pw.FixedColumnWidth(25),
-                  1: const pw.FlexColumnWidth(1),
-                  2: const pw.FlexColumnWidth(1),
-                  3: const pw.FlexColumnWidth(1),
-                  4: const pw.FlexColumnWidth(1),
-                },
-              );
+              if (tableData.length == 1) {
+                historyWidget = pw.Text("Sin accesos en esta jornada.", style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey));
+              } else {
+                historyWidget = pw.TableHelper.fromTextArray(
+                  headers: tableData.first,
+                  data: tableData.sublist(1),
+                  border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 8),
+                  headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF37474F)), 
+                  cellStyle: const pw.TextStyle(fontSize: 8),
+                  cellAlignment: pw.Alignment.center,
+                  columnWidths: {
+                    0: const pw.FixedColumnWidth(25),
+                    1: const pw.FlexColumnWidth(1),
+                    2: const pw.FlexColumnWidth(1),
+                    3: const pw.FlexColumnWidth(1),
+                    4: const pw.FlexColumnWidth(1),
+                  },
+                );
+              }
             }
 
-            // ===============================================
-            // AGREGAR LA "TARJETA" DE LA PERSONA AL PDF
-            // ===============================================
             content.add(
               pw.Container(
                 margin: const pw.EdgeInsets.only(bottom: 20),
@@ -140,12 +149,11 @@ class ReportePdfService {
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
                   borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                  color: PdfColors.grey50, // Fondo muy tenue para separar bloques
+                  color: PdfColors.grey50, 
                 ),
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    // Cabecera con datos de la persona
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -178,7 +186,6 @@ class ReportePdfService {
                       ]
                     ),
                     pw.SizedBox(height: 10),
-                    // Tabla de emparejamientos
                     historyWidget,
                   ]
                 )

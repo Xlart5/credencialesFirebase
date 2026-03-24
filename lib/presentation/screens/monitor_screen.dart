@@ -39,9 +39,51 @@ class _MonitorScreenState extends State<MonitorScreen> {
   }
 
   void _configurarVoz() async {
-    await _flutterTts.setLanguage("es-ES");
-    // 🔥 CAMBIO CLAVE: Lo ponemos en 'false' para que el código NO ESPERE a que termine de hablar
+    // Intentamos usar Español de México, si no, España
+    try {
+      await _flutterTts.setLanguage("es-MX");
+    } catch (_) {
+      await _flutterTts.setLanguage("es-ES"); 
+    }
+    
+    // Velocidad ágil pero entendible
+    await _flutterTts.setSpeechRate(0.8); 
+    await _flutterTts.setPitch(1.0);      
+
+    // No espera a terminar para liberar la pantalla
     await _flutterTts.awaitSpeakCompletion(false);
+  }
+
+  // 🔥 FUNCIÓN PARA LIMPIAR EL NOMBRE (Se queda porque te gustó)
+  String _limpiarTexto(String textoRaw) {
+    if (textoRaw.isEmpty) return '';
+    
+    String textoLimpio = textoRaw.toUpperCase();
+    
+    final palabrasAQuitar = [
+      'EXTERNOS', 
+      'EXTERNO', 
+      'EVENTUALES', 
+      'EVENTUAL', 
+      'PLANTA',
+      'PRENSA',
+      'OBSERVADOR',
+      'DELEGADO',
+      'CANDIDATO'
+    ];
+
+    for (var palabra in palabrasAQuitar) {
+      textoLimpio = textoLimpio.replaceAll(palabra, '').trim();
+    }
+    
+    List<String> palabras = textoLimpio.split(' ');
+    String resultado = '';
+    for (var p in palabras) {
+      if (p.isNotEmpty) {
+        resultado += p[0].toUpperCase() + p.substring(1).toLowerCase() + ' ';
+      }
+    }
+    return resultado.trim();
   }
 
   void _escucharFirebase() {
@@ -80,10 +122,9 @@ class _MonitorScreenState extends State<MonitorScreen> {
       });
     }
 
-    // 🔥 Quitamos el 'await' para que lance el audio y siga de largo sin frenarse
     _hablar(dataPersona);
     
-    // 🔥 CAMBIO CLAVE: Esperamos SOLO 1 SEGUNDO
+    // Esperamos 2 segundos
     await Future.delayed(const Duration(seconds: 2));
 
     if (mounted) setState(() => _esperando = true);
@@ -93,21 +134,19 @@ class _MonitorScreenState extends State<MonitorScreen> {
 
   Future<void> _hablar(Map<String, dynamic> data) async {
     final bool acceso = data['accesoComputo'] == true;
-    final String nombre = data['nombre']?.toString() ?? '';
-    final String apellido = data['apellidoPaterno']?.toString() ?? '';
+    
+    final String nombreRaw = data['nombre']?.toString() ?? '';
+    final String apellidoRaw = data['apellidoPaterno']?.toString() ?? '';
+    final String nombreLimpio = _limpiarTexto("$nombreRaw $apellidoRaw");
+    
     final String error = data['error']?.toString() ?? 'No registrado';
-    final String tipoRegistro =
-        data['tipoRegistro']?.toString().toLowerCase() ?? 'entrada';
+    final String tipoRegistro = data['tipoRegistro']?.toString().toLowerCase() ?? 'entrada';
 
     if (acceso) {
       if (tipoRegistro == 'salida') {
-        await _flutterTts.speak(
-          "Registro de salida exitoso. Hasta pronto, $nombre $apellido",
-        );
+        await _flutterTts.speak("Hasta pronto, $nombreLimpio");
       } else {
-        await _flutterTts.speak(
-          "Acceso permitido. Bienvenido, $nombre $apellido",
-        );
+        await _flutterTts.speak("Bienvenido, $nombreLimpio");
       }
     } else {
       await _flutterTts.speak("Acceso denegado. $error");
@@ -247,7 +286,9 @@ class _MonitorScreenState extends State<MonitorScreen> {
   ) {
     final String nombreStr = persona['nombre']?.toString() ?? '';
     final String apellidoStr = persona['apellidoPaterno']?.toString() ?? '';
-    final String nombreCompleto = "$nombreStr $apellidoStr".trim();
+    
+    final String nombreCompleto = _limpiarTexto("$nombreStr $apellidoStr");
+    
     final String imagenStr = persona['imagen']?.toString() ?? '';
     final String photoUrl = imagenStr.isNotEmpty
         ? imagenStr

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:carnetizacion/config/constans/constants/environment.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -534,6 +535,7 @@ class EmployeeProvider extends ChangeNotifier {
       return false;
     }
   }
+  
 
   Future<bool> actualizarImagenPerfil(int personalId, int imagenId, XFile nuevaImagen) async {
     try {
@@ -561,6 +563,88 @@ class EmployeeProvider extends ChangeNotifier {
     } catch (e) {
       print("Error subiendo foto: $e");
       return false;
+    }
+  }
+  // =========================================================================
+  // 🔥 MIGRACIÓN DE DATOS A FIREBASE FIRESTORE
+  // =========================================================================
+  Future<void> migrarEventualesAFirebase() async {
+    print("⏳ Iniciando migración desde el backend lento...");
+
+    try {
+      // 1. Llamamos a tu endpoint existente
+      final url = Uri.parse('$_baseUrl/api/personal/detalles');
+      final response = await http.get(url, headers: Environment.authHeaders);
+
+      if (response.statusCode == 200) {
+        // 2. Decodificamos la respuesta usando la misma lógica que ya tienes
+        final String jsonString = utf8.decode(response.bodyBytes);
+        final List<dynamic> datosBackend = json.decode(jsonString);
+        
+        // Instancia de Firestore
+        final firestore = FirebaseFirestore.instance;
+        WriteBatch batch = firestore.batch();
+        int contador = 0;
+        int totalSubidos = 0;
+
+        // 3. Recorremos cada persona recibida
+        for (var rawData in datosBackend) {
+          
+          // Tratamos de obtener el CI, si no hay, generamos un fallback temporal
+          String ci = rawData['carnetIdentidad']?.toString() ?? 'SIN_CI_$totalSubidos';
+          
+          // Referencia al documento en la colección de Firebase (usamos el CI como ID único)
+          DocumentReference docRef = firestore.collection('usuarios_eventuales').doc(ci);
+
+          // 4. Mapeamos TODOS los campos tal cual vienen de tu JSON
+          batch.set(docRef, {
+            'idBackend': rawData['id'] ?? 0,
+            'nombre': rawData['nombre'] ?? '',
+            'apellidoPaterno': rawData['apellidoPaterno'] ?? '',
+            'apellidoMaterno': rawData['apellidoMaterno'] ?? '',
+            'nombreCompleto': "${rawData['nombre'] ?? ''} ${rawData['apellidoPaterno'] ?? ''} ${rawData['apellidoMaterno'] ?? ''}".trim(),
+            'carnetIdentidad': ci,
+            'correo': rawData['correo'] ?? '',
+            'celular': rawData['celular'] ?? '',
+            'accesoComputo': rawData['accesoComputo'] ?? false,
+            'estadoActual': rawData['estadoActual'] ?? 'DESCONOCIDO',
+            'cargo': rawData['cargo'] ?? 'Sin Cargo',
+            'unidad': rawData['unidad'] ?? 'Sin Unidad',
+            'imagen': rawData['imagen'] ?? '',
+            'qr': rawData['qr'] ?? '',
+            'nroCircunscripcion': rawData['nroCircunscripcion'] ?? 'Sin Circunscripción',
+            'imagenId': rawData['imagenId'] ?? 0,
+            'tipo': rawData['tipo'] ?? 'EVENTUAL',
+            
+            // Campos de control interno de Firebase
+            'ultimaSincronizacion': FieldValue.serverTimestamp(),
+            'estaAdentro': false, // Lo forzamos a false por ser la primera carga
+          }, SetOptions(merge: true)); // merge: true actualiza datos sin borrar cosas extra
+
+          contador++;
+          totalSubidos++;
+
+          // 5. Firebase tiene un límite de 500 operaciones por Batch. Cortamos en 450 para estar seguros.
+          if (contador >= 450) {
+            await batch.commit();
+            print("📦 Paquete de 450 registros subido a Firebase...");
+            batch = firestore.batch(); // Reiniciamos el lote
+            contador = 0;
+          }
+        }
+
+        // 6. Subimos el remanente (si quedaron menos de 450 en el último lote)
+        if (contador > 0) {
+          await batch.commit();
+        }
+
+        print("✅ ¡MIGRACIÓN EXITOSA! Se subieron/actualizaron $totalSubidos eventuales en Firebase.");
+
+      } else {
+        print("❌ Error del servidor backend al intentar migrar: Código ${response.statusCode}");
+      }
+    } catch (e) {
+      print("❌ Ocurrió un error al intentar migrar: $e");
     }
   }
 }

@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/selection_models.dart';
 
 class RegisterProvider extends ChangeNotifier {
-  // === URL BASE (Actualiza tu Ngrok aquí) ===
+  // === URL BASE ===
   final String baseUrl = Environment.apiUrl;
 
   // === CONTROL DE PÁGINAS ===
@@ -16,6 +16,15 @@ class RegisterProvider extends ChangeNotifier {
 
   void setPage(int page) {
     _currentPage = page;
+    notifyListeners();
+  }
+
+  // 🔥 NUEVO: Controlar si es Planta o Eventual
+  bool _esPersonalDePlanta = false;
+  bool get esPersonalDePlanta => _esPersonalDePlanta;
+
+  void setTipoPersonal(bool esPlanta) {
+    _esPersonalDePlanta = esPlanta;
     notifyListeners();
   }
 
@@ -36,12 +45,10 @@ class RegisterProvider extends ChangeNotifier {
   String ci = '';
   String celular = '';
 
-  // Paso 3: Unidad y Cargo
   // === Paso 3: Unidad y Cargo ===
   List<UnidadItem> _unidades = [];
-  List<CargoItem> _todosLosCargos =
-      []; // Almacena todos los cargos temporalmente
-  bool isLoadingData = false; // Para mostrar ruedita de carga en la UI
+  List<CargoItem> _todosLosCargos = []; 
+  bool isLoadingData = false; 
 
   UnidadItem? selectedUnidad;
   CargoItem? selectedCargo;
@@ -49,16 +56,8 @@ class RegisterProvider extends ChangeNotifier {
 
   // Lista estática de Cochabamba
   final List<String> circunscripcionesCbba = [
-    'C-02',
-    'C-20',
-    'C-21',
-    'C-22',
-    'C-23',
-    'C-24',
-    'C-25',
-    'C-26',
-    'C-27',
-    'C-28',
+    'C-02', 'C-20', 'C-21', 'C-22', 'C-23', 
+    'C-24', 'C-25', 'C-26', 'C-27', 'C-28',
   ];
 
   List<UnidadItem> get unidades => _unidades;
@@ -78,7 +77,7 @@ class RegisterProvider extends ChangeNotifier {
   }
 
   // =====================================
-  // FETCH DESDE LA API (NUEVO)
+  // FETCH DESDE LA API
   // =====================================
   Future<void> fetchUnidadesYCargos() async {
     isLoadingData = true;
@@ -88,20 +87,14 @@ class RegisterProvider extends ChangeNotifier {
       // 1. Obtener Unidades
       final resUnidades = await http.get(Uri.parse('$baseUrl/api/unidades'));
       if (resUnidades.statusCode == 200) {
-        final List<dynamic> unData = json.decode(
-          utf8.decode(resUnidades.bodyBytes),
-        );
+        final List<dynamic> unData = json.decode(utf8.decode(resUnidades.bodyBytes));
         _unidades = unData.map((e) => UnidadItem.fromJson(e)).toList();
       }
 
       // 2. Obtener Cargos
-      final resCargos = await http.get(
-        Uri.parse('$baseUrl/api/cargos-proceso'),
-      );
+      final resCargos = await http.get(Uri.parse('$baseUrl/api/cargos-proceso'));
       if (resCargos.statusCode == 200) {
-        final List<dynamic> carData = json.decode(
-          utf8.decode(resCargos.bodyBytes),
-        );
+        final List<dynamic> carData = json.decode(utf8.decode(resCargos.bodyBytes));
         _todosLosCargos = carData.map((e) => CargoItem.fromJson(e)).toList();
       }
     } catch (e) {
@@ -129,21 +122,15 @@ class RegisterProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('$baseUrl/api/imagenes/upload'),
-      );
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/imagenes/upload'));
 
-      // Leemos los bytes de la imagen
       final bytes = await file.readAsBytes();
 
-      // ¡AQUÍ ESTÁ LA MAGIA TIPO POSTMAN!
-      // Forzamos que el servidor lo reconozca como image/jpeg
       final multipartFile = http.MultipartFile.fromBytes(
         'file',
         bytes,
         filename: file.name.isNotEmpty ? file.name : 'foto_perfil.jpg',
-        contentType: MediaType('image', 'jpeg'), // <--- Define el MIME type
+        contentType: MediaType('image', 'jpeg'), 
       );
 
       request.files.add(multipartFile);
@@ -154,24 +141,14 @@ class RegisterProvider extends ChangeNotifier {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final decoded = json.decode(responseData);
         _imagenId = decoded['idImagen'];
-        print("✅ IMAGEN SUBIDA CON ÉXITO. ID: $_imagenId");
-
         _isUploadingImage = false;
         notifyListeners();
         return true;
       } else {
-        print("⚠️ EL SERVIDOR RECHAZÓ LA IMAGEN.");
-        print("Código de error: ${response.statusCode}");
-        print("Respuesta del servidor: $responseData");
+        print("⚠️ EL SERVIDOR RECHAZÓ LA IMAGEN. Código: ${response.statusCode}");
       }
     } catch (e) {
-      print("❌ ERROR DE CONEXIÓN AL SUBIR LA IMAGEN.");
-      print("Detalle del error: $e");
-      if (e.toString().contains("XMLHttpRequest")) {
-        print(
-          "🛑 ALERTA: Esto es un error de CORS. Tu backend no permite peticiones desde Flutter Web local.",
-        );
-      }
+      print("❌ ERROR AL SUBIR IMAGEN: $e");
     }
 
     _isUploadingImage = false;
@@ -179,7 +156,6 @@ class RegisterProvider extends ChangeNotifier {
     return false;
   }
 
-  // 2. SOLICITAR CÓDIGO (POST /api/personal/solicitar-codigo)
   Future<bool> solicitarCodigo() async {
     _isRequestingCode = true;
     notifyListeners();
@@ -204,14 +180,21 @@ class RegisterProvider extends ChangeNotifier {
     return false;
   }
 
-  // 3. REGISTRAR PERSONAL (POST /api/personal/registrar)
+  // 🔥 AQUÍ ESTÁ EL CAMBIO PRINCIPAL (ENDPOINT DINÁMICO)
+  // =====================================
+  // REGISTRAR PERSONAL (POST /api/personal/registrar)
+  // =====================================
   Future<bool> registrarPersonal() async {
     _isSubmitting = true;
     notifyListeners();
 
     try {
+      // 🔥 CORRECCIÓN: La URL es siempre la misma para ambos casos
+      final String urlEndpoint = '$baseUrl/api/personal/registrar';
+
+      // Hacemos la petición
       final response = await http.post(
-        Uri.parse('$baseUrl/api/personal/registrar'),
+        Uri.parse(urlEndpoint),
         headers: Environment.authHeaders,
         body: jsonEncode({
           "nombre": nombre,
@@ -221,11 +204,11 @@ class RegisterProvider extends ChangeNotifier {
           "correo": correo,
           "celular": celular,
           "accesoComputo": false,
-          // Si es notario manda la seleccionada, sino manda vacío o la unidad
-          "nroCircunscripcion": isNotarioSelected
-              ? selectedCircunscripcion
-              : "",
-          "tipo": "EVENTUAL",
+          "nroCircunscripcion": isNotarioSelected ? selectedCircunscripcion : "",
+          
+          // 🔥 AQUÍ SE HACE LA DIFERENCIA: "PLANTA" o "EVENTUAL"
+          "tipo": _esPersonalDePlanta ? "PLANTA" : "EVENTUAL",
+          
           "cargoID": selectedCargo?.id ?? 1,
           "imagenId": _imagenId,
           "codigoVerificacion": codigoVerificacion,
@@ -236,10 +219,13 @@ class RegisterProvider extends ChangeNotifier {
         _isSubmitting = false;
         notifyListeners();
         return true;
+      } else {
+        print("Error del backend. Status: ${response.statusCode}. Body: ${response.body}");
       }
     } catch (e) {
       print("Error al registrar: $e");
     }
+    
     _isSubmitting = false;
     notifyListeners();
     return false;
@@ -250,6 +236,7 @@ class RegisterProvider extends ChangeNotifier {
   // =====================================
   void resetForm() {
     _currentPage = 0;
+    _esPersonalDePlanta = false; // 🔥 Resetear esto también
     _imageFile = null;
     _imagenId = null;
     nombre = '';

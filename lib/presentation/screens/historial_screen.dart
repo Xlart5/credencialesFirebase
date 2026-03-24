@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/provider/historial_provider.dart';
 
-
 class HistorialScreen extends StatefulWidget {
   const HistorialScreen({super.key});
 
@@ -15,16 +14,18 @@ class HistorialScreen extends StatefulWidget {
 class _HistorialScreenState extends State<HistorialScreen> {
   String _searchQuery = '';
   
-  // Filtros Maestros
   String _categoriaPrincipal = 'TODOS';
   
-  // Filtros Externos
   String _tipoExterno = 'TODOS';
   final List<String> _tiposExternosDisponibles = ['TODOS', 'PRENSA', 'OBSERVADOR', 'DELEGADO', 'CANDIDATO', 'PUBLICO GENERAL'];
+  
+  String _partidoSeleccionado = 'TODOS';
+  String _asociacionSeleccionada = 'TODAS';
 
-  // Filtros Eventuales
   String _unidadSeleccionada = 'TODAS';
   String _cargoSeleccionado = 'TODOS';
+
+  String _fechaSeleccionada = 'TODAS';
 
   @override
   void initState() {
@@ -45,9 +46,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
     }
   }
 
-  // ========================================================
-  // BOTTOM SHEET DE DETALLES DEL HISTORIAL
-  // ========================================================
   void _mostrarDetallesHistorial(BuildContext context, Map<String, dynamic> persona) {
     List<dynamic> accesosRaw = persona['historialAccesos'] ?? [];
     accesosRaw.sort((a, b) => a['timestamp'].compareTo(b['timestamp']));
@@ -102,7 +100,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          "Rol: ${persona['tipo']}",
+                          "Rol: ${persona['tipo']} | Recinto: ${persona['recinto'] ?? 'N/A'}", 
                           style: const TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],
@@ -143,6 +141,8 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                   const SizedBox(height: 5),
                                   Text(entrada != null ? entrada['fecha'] : "---", style: const TextStyle(color: Colors.grey, fontSize: 12)),
                                   Text(entrada != null ? entrada['hora'] : "Sin registro", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                  const SizedBox(height: 5),
+                                  Text(entrada != null ? "📍 ${entrada['recinto'] ?? 'N/A'}" : "", style: const TextStyle(color: Colors.blueGrey, fontSize: 11, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                               const Icon(Icons.arrow_forward_outlined, color: Colors.grey),
@@ -152,6 +152,8 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                   const SizedBox(height: 5),
                                   Text(salida != null ? salida['fecha'] : "---", style: const TextStyle(color: Colors.grey, fontSize: 12)),
                                   Text(salida != null ? salida['hora'] : "Sigue Adentro", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                  const SizedBox(height: 5),
+                                  Text(salida != null ? "📍 ${salida['recinto'] ?? 'N/A'}" : "", style: const TextStyle(color: Colors.blueGrey, fontSize: 11, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             ],
@@ -170,12 +172,16 @@ class _HistorialScreenState extends State<HistorialScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<HistorialProvider>();
 
-    // ==========================================
-    // LÓGICA DE FILTRADO
-    // ==========================================
     List<Map<String, dynamic>> listaFiltrada = provider.todosLosAccesos.where((p) {
       if (_searchQuery.isNotEmpty && !(p['nombreCompleto']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) ?? false)) {
         return false;
+      }
+
+      // 🔥 FILTRO POR FECHA LÓGICA
+      if (_fechaSeleccionada != 'TODAS') {
+        List<dynamic> accesos = p['historialAccesos'] ?? [];
+        bool tieneAccesoEnFecha = accesos.any((acc) => acc['fechaLogica'] == _fechaSeleccionada);
+        if (!tieneAccesoEnFecha) return false;
       }
 
       String tipoPersona = p['tipo']?.toString().toUpperCase() ?? '';
@@ -183,6 +189,14 @@ class _HistorialScreenState extends State<HistorialScreen> {
       if (_categoriaPrincipal == 'EXTERNOS') {
         if (tipoPersona == 'EVENTUAL') return false;
         if (_tipoExterno != 'TODOS' && tipoPersona != _tipoExterno) return false;
+        
+        if ((_tipoExterno == 'DELEGADO' || _tipoExterno == 'CANDIDATO') && _partidoSeleccionado != 'TODOS') {
+          if ((p['partidoPolitico'] ?? '') != _partidoSeleccionado) return false;
+        }
+        
+        if (_tipoExterno == 'OBSERVADOR' && _asociacionSeleccionada != 'TODAS') {
+          if ((p['asociacion'] ?? '') != _asociacionSeleccionada) return false;
+        }
       } 
       else if (_categoriaPrincipal == 'EVENTUALES') {
         if (tipoPersona != 'EVENTUAL') return false;
@@ -203,7 +217,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // HEADER Y BOTONES DE RECARGA/PDF
             Row(
               children: [
                 IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go("/")),
@@ -220,10 +233,16 @@ class _HistorialScreenState extends State<HistorialScreen> {
                 ElevatedButton.icon(
                   onPressed: () {
                     String tituloFiltro = _categoriaPrincipal;
-                    if (_categoriaPrincipal == 'EXTERNOS') tituloFiltro += " - $_tipoExterno";
+                    if (_categoriaPrincipal == 'EXTERNOS') {
+                      tituloFiltro += " - $_tipoExterno";
+                      if (_partidoSeleccionado != 'TODOS') tituloFiltro += " ($_partidoSeleccionado)";
+                      if (_asociacionSeleccionada != 'TODAS') tituloFiltro += " ($_asociacionSeleccionada)";
+                    }
                     if (_categoriaPrincipal == 'EVENTUALES') tituloFiltro += " - $_unidadSeleccionada ($_cargoSeleccionado)";
                     
-                    ReportePdfService.generarReporteAccesos(listaFiltrada, tituloFiltro);
+                    if (_fechaSeleccionada != 'TODAS') tituloFiltro += " | Jornada Lógica: $_fechaSeleccionada";
+                    
+                    ReportePdfService.generarReporteAccesos(listaFiltrada, tituloFiltro, _fechaSeleccionada);
                   },
                   icon: const Icon(Icons.picture_as_pdf, size: 18),
                   label: const Text("Exportar PDF"),
@@ -240,15 +259,11 @@ class _HistorialScreenState extends State<HistorialScreen> {
             ),
             const SizedBox(height: 30),
 
-            // ==========================================
-            // BARRA INTERACTIVA (BÚSQUEDA + MENÚS HOVER)
-            // ==========================================
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
               child: Row(
                 children: [
-                  // Buscador
                   Expanded(
                     flex: 1,
                     child: TextField(
@@ -264,16 +279,32 @@ class _HistorialScreenState extends State<HistorialScreen> {
                   ),
                   const SizedBox(width: 20),
                   
-                  // 🔥 MENÚS NATIVOS CON HOVER
                   MenuBar(
                     style: MenuStyle(
-                      backgroundColor: MaterialStateProperty.all(Colors.grey.shade50),
-                      elevation: MaterialStateProperty.all(0),
-                      padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 10, vertical: 5)),
-                      shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                      backgroundColor: WidgetStateProperty.all(Colors.grey.shade50),
+                      elevation: WidgetStateProperty.all(0),
+                      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 10, vertical: 5)),
+                      shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
                     ),
                     children: [
-                      // 1. FILTRO DE CATEGORÍA
+                      SubmenuButton(
+                        menuChildren: [
+                          MenuItemButton(
+                            onPressed: () => setState(() => _fechaSeleccionada = 'TODAS'),
+                            child: const Text('Todas las Jornadas', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                          const PopupMenuDivider(),
+                          ...provider.fechasDisponibles.map((f) => MenuItemButton(
+                            onPressed: () => setState(() => _fechaSeleccionada = f),
+                            child: Text(f),
+                          )).toList(),
+                        ],
+                        child: Text(
+                          _fechaSeleccionada == 'TODAS' ? 'Jornada: TODAS' : 'Jornada: $_fechaSeleccionada',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                        ),
+                      ),
+                      
                       SubmenuButton(
                         menuChildren: [
                           MenuItemButton(
@@ -282,11 +313,20 @@ class _HistorialScreenState extends State<HistorialScreen> {
                           ),
                           MenuItemButton(
                             child: const Text('Mostrar EXTERNOS'),
-                            onPressed: () => setState(() { _categoriaPrincipal = 'EXTERNOS'; _tipoExterno = 'TODOS'; }),
+                            onPressed: () => setState(() { 
+                              _categoriaPrincipal = 'EXTERNOS'; 
+                              _tipoExterno = 'TODOS'; 
+                              _partidoSeleccionado = 'TODOS';
+                              _asociacionSeleccionada = 'TODAS';
+                            }),
                           ),
                           MenuItemButton(
                             child: const Text('Mostrar EVENTUALES'),
-                            onPressed: () => setState(() { _categoriaPrincipal = 'EVENTUALES'; _unidadSeleccionada = 'TODAS'; _cargoSeleccionado = 'TODOS'; }),
+                            onPressed: () => setState(() { 
+                              _categoriaPrincipal = 'EVENTUALES'; 
+                              _unidadSeleccionada = 'TODAS'; 
+                              _cargoSeleccionado = 'TODOS'; 
+                            }),
                           ),
                         ],
                         child: Text(
@@ -295,12 +335,15 @@ class _HistorialScreenState extends State<HistorialScreen> {
                         ),
                       ),
 
-                      // 2. SUB-FILTRO EXTERNOS (Si está activo)
                       if (_categoriaPrincipal == 'EXTERNOS')
                         SubmenuButton(
                           menuChildren: _tiposExternosDisponibles.map((t) => MenuItemButton(
                             child: Text(t),
-                            onPressed: () => setState(() => _tipoExterno = t),
+                            onPressed: () => setState(() { 
+                              _tipoExterno = t; 
+                              _partidoSeleccionado = 'TODOS'; 
+                              _asociacionSeleccionada = 'TODAS';
+                            }),
                           )).toList(),
                           child: Text(
                             'Filtro: $_tipoExterno',
@@ -308,7 +351,44 @@ class _HistorialScreenState extends State<HistorialScreen> {
                           ),
                         ),
 
-                      // 3. SUB-FILTRO EVENTUALES (Cascada con Hover: Unidades -> Cargos)
+                      if (_categoriaPrincipal == 'EXTERNOS' && (_tipoExterno == 'DELEGADO' || _tipoExterno == 'CANDIDATO'))
+                        SubmenuButton(
+                          menuChildren: [
+                            MenuItemButton(
+                              onPressed: () => setState(() => _partidoSeleccionado = 'TODOS'),
+                              child: const Text('Todos los Partidos', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                            ),
+                            const PopupMenuDivider(),
+                            ...provider.partidosDisponibles.map((partido) => MenuItemButton(
+                              onPressed: () => setState(() => _partidoSeleccionado = partido),
+                              child: Text(partido),
+                            )).toList(),
+                          ],
+                          child: Text(
+                            _partidoSeleccionado == 'TODOS' ? 'Partido Político' : 'Partido: $_partidoSeleccionado',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                          ),
+                        ),
+
+                      if (_categoriaPrincipal == 'EXTERNOS' && _tipoExterno == 'OBSERVADOR')
+                        SubmenuButton(
+                          menuChildren: [
+                            MenuItemButton(
+                              onPressed: () => setState(() => _asociacionSeleccionada = 'TODAS'),
+                              child: const Text('Todas las Organizaciones', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurpleAccent)),
+                            ),
+                            const PopupMenuDivider(),
+                            ...provider.asociacionesDisponibles.map((asoc) => MenuItemButton(
+                              onPressed: () => setState(() => _asociacionSeleccionada = asoc),
+                              child: Text(asoc),
+                            )).toList(),
+                          ],
+                          child: Text(
+                            _asociacionSeleccionada == 'TODAS' ? 'Organización' : 'Org: $_asociacionSeleccionada',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurpleAccent),
+                          ),
+                        ),
+
                       if (_categoriaPrincipal == 'EVENTUALES')
                         SubmenuButton(
                           menuChildren: [
@@ -316,9 +396,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                               onPressed: () => setState(() { _unidadSeleccionada = 'TODAS'; _cargoSeleccionado = 'TODOS'; }),
                               child: const Text('Todas las Unidades', style: TextStyle(fontWeight: FontWeight.bold)),
                             ),
-                            const PopupMenuDivider(), // Separador
-                            
-                            // Lista de Unidades
+                            const PopupMenuDivider(),
                             ...provider.unidadesDisponibles.map((unidad) {
                               return SubmenuButton(
                                 menuChildren: [
@@ -326,7 +404,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                     onPressed: () => setState(() { _unidadSeleccionada = unidad; _cargoSeleccionado = 'TODOS'; }),
                                     child: const Text('Todos los Cargos', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
                                   ),
-                                  // Lista de Cargos para esa unidad
                                   ...(provider.cargosPorUnidad[unidad] ?? []).map((cargo) {
                                     return MenuItemButton(
                                       onPressed: () => setState(() { _unidadSeleccionada = unidad; _cargoSeleccionado = cargo; }),
@@ -334,7 +411,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                     );
                                   }).toList(),
                                 ],
-                                child: Text(unidad), // Nombre de la Unidad en el menú principal
+                                child: Text(unidad),
                               );
                             }).toList(),
                           ],
@@ -352,15 +429,13 @@ class _HistorialScreenState extends State<HistorialScreen> {
             ),
             const SizedBox(height: 20),
 
-            // ==========================================
-            // CABECERA Y LISTA (La tabla)
-            // ==========================================
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Row(
                 children: const [
                   Expanded(flex: 3, child: Text("Nombre Completo", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))),
                   Expanded(flex: 2, child: Text("Rol / Tipo", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))),
+                  Expanded(flex: 2, child: Text("Recinto", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))), 
                   Expanded(flex: 2, child: Text("Estado Actual", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))),
                   Expanded(flex: 1, child: Center(child: Text("Acción", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)))),
                 ],
@@ -378,6 +453,10 @@ class _HistorialScreenState extends State<HistorialScreen> {
                         bool estaAdentro = persona['estaAdentro'] == true;
                         String rol = persona['tipo'] ?? 'N/A';
                         Color colorRol = _getColorPorRol(rol);
+                        
+                        String detalleExtra = "";
+                        if (rol == 'DELEGADO' || rol == 'CANDIDATO') detalleExtra = persona['partidoPolitico'] ?? '';
+                        if (rol == 'OBSERVADOR') detalleExtra = persona['asociacion'] ?? '';
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 10),
@@ -394,7 +473,14 @@ class _HistorialScreenState extends State<HistorialScreen> {
                             children: [
                               Expanded(
                                 flex: 3,
-                                child: Text(persona['nombreCompleto'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(persona['nombreCompleto'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                    if (detalleExtra.isNotEmpty)
+                                      Text(detalleExtra, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                                  ],
+                                ),
                               ),
                               Expanded(
                                 flex: 2,
@@ -405,6 +491,16 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                     decoration: BoxDecoration(color: colorRol.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
                                     child: Text(rol, style: TextStyle(color: colorRol, fontSize: 12, fontWeight: FontWeight.bold)),
                                   ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.business, size: 16, color: Colors.blueGrey),
+                                    const SizedBox(width: 5),
+                                    Text(persona['recinto'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, fontSize: 12)),
+                                  ],
                                 ),
                               ),
                               Expanded(

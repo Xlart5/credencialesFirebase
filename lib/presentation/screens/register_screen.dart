@@ -9,7 +9,10 @@ import 'package:flutter/foundation.dart';
 import '../../config/models/selection_models.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  // 🔥 1. Recibimos la condicional desde la ruta
+  final bool esPlanta;
+  
+  const RegisterScreen({super.key, this.esPlanta = false});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -24,7 +27,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<RegisterProvider>().fetchUnidadesYCargos();
+      final provider = context.read<RegisterProvider>();
+      // 🔥 2. Le avisamos al Provider apenas carga la pantalla
+      provider.setTipoPersonal(widget.esPlanta); 
+      provider.fetchUnidadesYCargos();
     });
   }
 
@@ -102,6 +108,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<RegisterProvider>();
+    
+    // 🔥 3. Un pequeño distintivo para saber en qué formulario estamos
+    final String etiquetaTipo = widget.esPlanta ? " (PLANTA)" : "";
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -141,7 +150,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  _headers[provider.currentPage]["title"]!,
+                  _headers[provider.currentPage]["title"]! + etiquetaTipo,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 26,
@@ -364,8 +373,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Icons.person_outline,
               (v) => provider.materno = v,
             ),
-
-            // 🔥 AQUÍ ESTÁ LA MEJORA PARA EL CARNET DE IDENTIDAD
             _buildInputField(
               "Cédula de Identidad",
               "Ej. 1234567",
@@ -377,7 +384,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 return null;
               },
             ),
-
             _buildInputField(
               "Número de Teléfono",
               "Ej. 74312716",
@@ -595,10 +601,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       "ej. juan@institucion.gob",
                       Icons.email_outlined,
                     ),
-                    // Eliminamos espacios sobrantes de forma automática por si acaso
                     onSaved: (v) => provider.correo = v!.trim(),
-
-                    // 🔥 AQUÍ ESTÁ LA MEJORA PARA EL CORREO ELECTRÓNICO
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Correo requerido';
                       if (v.contains(' ')) return 'No se permiten espacios';
@@ -790,16 +793,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // --- WIDGETS DE APOYO (Para no repetir código) ---
-
-  // 🔥 Modificamos esta función para que acepte un validador personalizado
+  // --- WIDGETS DE APOYO ---
   Widget _buildInputField(
     String label,
     String hint,
     IconData icon,
     Function(String) onSaved, {
     bool isNumber = false,
-    String? Function(String?)? customValidator, // <--- PROPIEDAD AGREGADA
+    String? Function(String?)? customValidator,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -818,10 +819,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           TextFormField(
             keyboardType: isNumber ? TextInputType.number : TextInputType.text,
             decoration: _inputDecoration(hint, icon),
-            // Utilizamos el validador personalizado si existe, si no el normal
-            validator:
-                customValidator ?? (v) => v!.isEmpty ? 'Requerido' : null,
-            // Guardamos con trim() para eliminar espacios finales/iniciales accidentales
+            validator: customValidator ?? (v) => v!.isEmpty ? 'Requerido' : null,
             onSaved: (v) => onSaved(v!.trim()),
           ),
         ],
@@ -853,7 +851,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           TextFormField(
             keyboardType: isNumber ? TextInputType.number : TextInputType.text,
             decoration: _inputDecoration(hint, icon),
-            // Igualmente usamos trim() para limpiar la data no requerida
             onSaved: (v) => onSaved(v!.trim()),
           ),
         ],

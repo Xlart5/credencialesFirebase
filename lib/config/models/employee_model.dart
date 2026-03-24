@@ -16,6 +16,8 @@ class Employee {
   final String photoUrl;
   final String qrUrl;
   final String Circu;
+  // 🔥 NUEVO CAMPO: Para distinguir Planta de Eventual
+  final String tipo;
 
   Employee({
     required this.id,
@@ -33,6 +35,7 @@ class Employee {
     required this.qrUrl,
     required this.Circu,
     required this.ImageId,
+    this.tipo = 'EVENTUAL', // Valor por defecto
   });
 
   String get nombreCompleto =>
@@ -73,6 +76,7 @@ class Employee {
       qrUrl: json['qr'] ?? '',
       Circu: json['nroCircunscripcion'] ?? 'Sin Circunscripción',
       ImageId: json['imagenId'] ?? 0,
+      tipo: json['tipo'] ?? 'EVENTUAL', // Lo leemos del backend
     );
   }
 
@@ -94,6 +98,7 @@ class Employee {
       'qr': qrUrl,
       'nroCircunscripcion': Circu,
       'imagenId': ImageId,
+      'tipo': tipo, // Lo guardamos en caché
     };
   }
 
@@ -113,6 +118,7 @@ class Employee {
     String? photoUrl,
     String? qrUrl,
     String? circuns,
+    String? tipo, // Nuevo parámetro opcional
   }) {
     return Employee(
       id: id ?? this.id,
@@ -130,6 +136,7 @@ class Employee {
       qrUrl: qrUrl ?? this.qrUrl,
       Circu: circuns ?? this.Circu,
       ImageId: this.ImageId,
+      tipo: tipo ?? this.tipo, // Asignamos el nuevo valor o mantenemos el actual
     );
   }
 
