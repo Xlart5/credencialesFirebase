@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:carnetizacion/presentation/widgets/add_cargo_sheet.dart';
 import '../../config/models/unidad_model.dart';
+import '../../config/theme/app_colors.dart';
 
 // 🔥 IMPORTAMOS TU EMPLOYEE PROVIDER PARA PODER CONTAR A LAS PERSONAS
 import '../../config/provider/employee_provider.dart';
@@ -322,7 +323,7 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                               itemBuilder: (context, index) {
                                 final cargo = cargos[index];
 
-                                // 🔥 LA MAGIA: Contamos cuántos empleados de esta unidad tienen este cargo exacto
+                                // 🔥 Contamos cuántos empleados tienen este cargo
                                 final cantidadPersonas = allEmployees.where((
                                   emp,
                                 ) {
@@ -380,16 +381,11 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
                                             ),
                                             decoration: BoxDecoration(
                                               color: cantidadPersonas > 0
-                                                  ? Colors
-                                                        .blue
-                                                        .shade50 // Azulito si hay gente
-                                                  : Colors
-                                                        .grey
-                                                        .shade100, // Gris si está en 0
+                                                  ? Colors.blue.shade50 
+                                                  : Colors.grey.shade100, 
                                               borderRadius:
                                                   BorderRadius.circular(10),
                                             ),
-                                            // 🔥 AQUI MOSTRAMOS LA CANTIDAD CALCULADA
                                             child: Text(
                                               cantidadPersonas.toString(),
                                               style: TextStyle(
@@ -504,40 +500,73 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
     );
   }
 
+  // =======================================================
+  // 🔥 NUEVA FUNCIÓN PARA EDITAR CARGO (INCLUYE DESCRIPCIÓN)
+  // =======================================================
   void _mostrarDialogoEditar(
     BuildContext context,
     CargoUnidadModel cargo,
     UnidadesProvider provider,
     int unidadId,
   ) {
-    final TextEditingController editCtrl = TextEditingController(
-      text: cargo.nombre,
-    );
+    final TextEditingController editNombreCtrl = TextEditingController(text: cargo.nombre);
+    final TextEditingController editDescCtrl = TextEditingController(text: cargo.descripcion);
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text(
           "Editar Cargo",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.primaryDark),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // CAMPO 1: NOMBRE
             const Text(
               "Nombre del Cargo:",
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             TextField(
-              controller: editCtrl,
+              controller: editNombreCtrl,
               decoration: InputDecoration(
                 filled: true,
-                fillColor: Colors.grey.shade100,
+                fillColor: Colors.grey.shade50,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.blueAccent),
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 🔥 CAMPO 2: DESCRIPCIÓN
+            const Text(
+              "Descripción:",
+              style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: editDescCtrl,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: "Ej. Personal de apoyo logístico...",
+                hintStyle: const TextStyle(color: Colors.black26, fontSize: 13),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.blueAccent),
                 ),
               ),
             ),
@@ -549,24 +578,32 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
             child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () async {
-              final nuevoNombre = editCtrl.text.trim();
+              final nuevoNombre = editNombreCtrl.text.trim();
+              final nuevaDesc = editDescCtrl.text.trim();
+              
               if (nuevoNombre.isEmpty) return;
 
               Navigator.pop(ctx);
+              
+              // 🔥 ENVIAMOS LOS 4 DATOS QUE PIDE TU SWAGGER (Nombre, Unidad, Descripcion, Estado Activo)
               bool success = await provider.updateCargo(
                 cargo.id,
                 unidadId,
                 nuevoNombre,
+                nuevaDesc,
+                cargo.activo, 
               );
+              
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      success
-                          ? "Cargo actualizado con éxito"
-                          : "Error al actualizar",
+                      success ? "Cargo actualizado con éxito" : "Error al actualizar",
                     ),
                     backgroundColor: success ? Colors.green : Colors.red,
                   ),
@@ -575,7 +612,7 @@ class _UnidadDetailsDialogState extends State<UnidadDetailsDialog> {
             },
             child: const Text(
               "Guardar Cambios",
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ),
         ],

@@ -165,7 +165,10 @@ class UnidadesProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateCargo(int id, int unidadId, String nuevoNombre) async {
+ // =====================================
+  // ACTUALIZAR CARGO (CON DESCRIPCIÓN Y ESTADO)
+  // =====================================
+  Future<bool> updateCargo(int id, int unidadId, String nuevoNombre, String descripcion, bool activo) async {
     try {
       final url = Uri.parse('$_baseUrl/api/cargos-proceso/$id');
       final response = await http.put(
@@ -174,6 +177,8 @@ class UnidadesProvider extends ChangeNotifier {
         body: jsonEncode({
           'nombre': nuevoNombre.toUpperCase(),
           'unidadId': unidadId,
+          'descripcion': descripcion, // 🔥 NUEVO CAMPO
+          'activo': activo,           // 🔥 NUEVO CAMPO
         }),
       );
 
@@ -183,6 +188,7 @@ class UnidadesProvider extends ChangeNotifier {
       }
       return false;
     } catch (e) {
+      print("Error al actualizar cargo: $e");
       return false;
     }
   }

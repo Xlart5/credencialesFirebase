@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../config/theme/app_colors.dart';
 import 'employee_datasource.dart';
 
-// 🔥 CAMBIO 1: Ahora es un StatefulWidget para poder actualizar la pantalla
+// 🔥 IMPORTAMOS EL AUTH PROVIDER
+import '../../config/provider/auth_provider.dart';
+
 class EmployeesTable extends StatefulWidget {
   const EmployeesTable({super.key});
 
@@ -14,20 +16,17 @@ class EmployeesTable extends StatefulWidget {
 }
 
 class _EmployeesTableState extends State<EmployeesTable> {
-  // 🔥 CAMBIO 2: Creamos la variable que recordará cuántas filas queremos ver
   int _filasPorPagina = 10;
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EmployeeProvider>();
-
-    // Conectamos los datos del provider con nuestra fuente de la tabla
     final dataSource = EmployeeDataSource(provider.employees, context);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -40,7 +39,7 @@ class _EmployeesTableState extends State<EmployeesTable> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildHeader(context), // Aquí es donde realmente se dibuja el botón
+          _buildHeader(context),
           const SizedBox(height: 20),
 
           if (provider.isLoading)
@@ -57,23 +56,17 @@ class _EmployeesTableState extends State<EmployeesTable> {
               child: PaginatedDataTable(
                 columns: const [
                   DataColumn(label: Text("Foto")),
-                  DataColumn(label: Text("Empleado")),
+                  DataColumn(label: Text("Personal")),
                   DataColumn(label: Text("Cargo")),
                   DataColumn(label: Text("Cédula (CI)")),
-                  DataColumn(label: Text("Unidad")),
+                  DataColumn(label: Text("Circunscripción / Unidad")),
                   DataColumn(label: Text("Estado")),
                   DataColumn(label: Text("Acciones")),
                 ],
                 source: dataSource,
-                header: const Text("Listado Oficial"),
-                
-                // 🔥 CAMBIO 3: Usamos nuestra variable dinámica
+                header: const Text("Padrón de Personal Registrado"),
                 rowsPerPage: _filasPorPagina,
-                
-                // 🔥 CAMBIO 4: Agregamos el 100 a las opciones
                 availableRowsPerPage: const [10, 20, 50, 100],
-                
-                // 🔥 CAMBIO 5: ¡Le damos vida a la función!
                 onRowsPerPageChanged: (nuevoValor) {
                   if (nuevoValor != null) {
                     setState(() {
@@ -81,7 +74,6 @@ class _EmployeesTableState extends State<EmployeesTable> {
                     });
                   }
                 },
-                
                 showCheckboxColumn: true,
                 columnSpacing: 20,
                 horizontalMargin: 20,
@@ -94,17 +86,26 @@ class _EmployeesTableState extends State<EmployeesTable> {
 
   Widget _buildHeader(BuildContext context) {
     final provider = context.read<EmployeeProvider>();
+    
+    // ==========================================
+    // 🛡️ LÓGICA DE ROLES (RBAC) INSTITUCIONAL
+    // ==========================================
+    final authProvider = context.watch<AuthProvider>();
+    final String rolActual = authProvider.currentUser?.rol ?? 'OBSERVADOR';
+    
+    // Solo Admin y Coordinador pueden crear nuevos registros
+    final bool puedeCrear = (rolActual == 'ADMINISTRADOR' || rolActual == 'COORDINADOR');
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: const [
-            Icon(Icons.list_alt, color: AppColors.primaryYellow),
+            Icon(Icons.how_to_reg, color: AppColors.primaryDark),
             SizedBox(width: 10),
             Text(
-              "Gestión de Empleados",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              "Gestión de Personal",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
             ),
           ],
         ),
@@ -123,35 +124,30 @@ class _EmployeesTableState extends State<EmployeesTable> {
                     borderSide: BorderSide.none,
                   ),
                   prefixIcon: const Icon(Icons.search, size: 20),
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 0,
-                    horizontal: 10,
-                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 10),
                   isDense: true,
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-
-            // ✅ AQUÍ ES DONDE DEBES PONER LA NAVEGACIÓN
-            ElevatedButton.icon(
-              onPressed: () {
-                context.go('/registro'); // <--- ¡AQUÍ VA!
-              },
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text("Nuevo"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryDark,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 15,
+            
+            // 🔥 ESCUDO: Solo dibujamos el botón si tiene permisos
+            if (puedeCrear) ...[
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                onPressed: () {
+                  context.go('/registro'); 
+                },
+                icon: const Icon(Icons.person_add, size: 18),
+                label: const Text("Registrar"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryYellow,
+                  foregroundColor: AppColors.primaryDark,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                  elevation: 0,
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ],

@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carnetizacion/config/helpers/pdf_generator_service.dart';
 import 'package:carnetizacion/config/provider/employee_provider.dart';
 import 'package:carnetizacion/presentation/widgets/edit_employee_sheet.dart';
@@ -6,10 +5,12 @@ import 'package:carnetizacion/presentation/widgets/view_employee_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
-// Importante para la navegación si usas editar
-import '../../config/models/employee_model.dart';
 
+import '../../config/models/employee_model.dart';
 import '../../config/theme/app_colors.dart';
+
+// 🔥 IMPORTAMOS EL AUTH PROVIDER
+import '../../config/provider/auth_provider.dart';
 
 class EmployeeDataSource extends DataTableSource {
   final List<Employee> employees;
@@ -22,37 +23,39 @@ class EmployeeDataSource extends DataTableSource {
     if (index >= employees.length) return null;
     final emp = employees[index];
 
-    // Leemos el provider para saber si está seleccionado
     final provider = context.read<EmployeeProvider>();
 
+    // ==========================================
+    // 🛡️ LÓGICA DE ROLES (RBAC)
+    // ==========================================
+    final authProvider = context.read<AuthProvider>();
+    final String rolActual = authProvider.currentUser?.rol ?? 'OBSERVADOR';
+    
+    final bool puedeEditar = (rolActual == 'ADMINISTRADOR' || rolActual == 'COORDINADOR');
+    final bool puedeEliminar = (rolActual == 'ADMINISTRADOR');
+    // ==========================================
+
     final bool esImpreso = emp.estado == 1;
-    final Color colorEstado = esImpreso
-        ? AppColors.successGreen
-        : Colors.orange;
-    final Color bgEstado = esImpreso
-        ? AppColors.successGreen.withOpacity(0.1)
-        : Colors.orange.withOpacity(0.1);
+    final Color colorEstado = esImpreso ? AppColors.successGreen : Colors.orange;
+    final Color bgEstado = esImpreso ? AppColors.successGreen.withOpacity(0.1) : Colors.orange.withOpacity(0.1);
 
     return DataRow.byIndex(
       index: index,
-      color: MaterialStateProperty.resolveWith<Color?>((
-        Set<MaterialState> states,
-      ) {
+      color: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
         return index.isEven ? Colors.white : Colors.grey[50];
       }),
 
-      // 🔥 1. Le decimos si la casilla debe estar marcada
       selected: provider.selectedForPrint.contains(emp),
 
-      // 🔥 2. ¿Qué pasa cuando tocan la casilla o la fila?
-      onSelectChanged: (bool? selected) {
+      // 🔥 ESCUDO: Anulamos la selección para los observadores
+      onSelectChanged: puedeEditar ? (bool? selected) {
         if (selected != null) {
           provider.toggleSelection(emp);
         }
-      },
+      } : null, 
 
       cells: [
-        // 1. FOTO (Solo Inicial, CERO consumo de internet)
+        // 1. FOTO 
         DataCell(
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 5),
@@ -60,14 +63,8 @@ class EmployeeDataSource extends DataTableSource {
               radius: 18,
               backgroundColor: AppColors.primaryDark.withOpacity(0.1),
               child: Text(
-                emp.nombreCompleto.isNotEmpty
-                    ? emp.nombreCompleto.substring(0, 1).toUpperCase()
-                    : '?',
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+                emp.nombreCompleto.isNotEmpty ? emp.nombreCompleto.substring(0, 1).toUpperCase() : '?',
+                style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
           ),
@@ -79,13 +76,7 @@ class EmployeeDataSource extends DataTableSource {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                emp.nombreCompleto,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
+              Text(emp.nombreCompleto, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryDark)),
             ],
           ),
         ),
@@ -94,113 +85,90 @@ class EmployeeDataSource extends DataTableSource {
         DataCell(Text(emp.cargo, style: const TextStyle(fontSize: 12))),
 
         // 4. CÉDULA
-        DataCell(
-          Text(
-            emp.ci,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-          ),
-        ),
+        DataCell(Text(emp.ci, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
 
         // 5. UNIDAD
         DataCell(
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              emp.unidad,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
-            ),
+            decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4)),
+            child: Text(emp.unidad, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
           ),
         ),
 
-        // 6. ESTADO (Con colores restaurados)
+        // 6. ESTADO 
         DataCell(
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: bgEstado,
-              borderRadius: BorderRadius.circular(20),
-            ),
+            decoration: BoxDecoration(color: bgEstado, borderRadius: BorderRadius.circular(20)),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.circle, size: 8, color: colorEstado),
                 const SizedBox(width: 6),
-                Text(
-                  emp.estadoActual,
-                  style: TextStyle(
-                    color: colorEstado,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
-                  ),
-                ),
+                Text(emp.estadoActual, style: TextStyle(color: colorEstado, fontWeight: FontWeight.bold, fontSize: 11)),
               ],
             ),
           ),
         ),
 
-        // 7. ACCIONES (4 Botones: Ver, Imprimir, Editar, Borrar)
+        // 7. ACCIONES
         DataCell(
           Row(
-            mainAxisSize: MainAxisSize
-                .min, // Importante para que no ocupen espacio infinito
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // 🔥 VER: Abre el diálogo con la tarjeta de información detallada
+              // 🔥 VER: Lo ven todos
               _ActionButton(
                 icon: Icons.visibility_outlined,
-                color: Colors.grey,
+                color: Colors.blueGrey,
                 onTap: () {
                   showViewEmployeeDialog(context, emp);
                 },
               ),
 
-              const SizedBox(width: 5),
+              // 🔥 IMPRIMIR: Solo Admin y Coordinador
+              if (puedeEditar) ...[
+                const SizedBox(width: 5),
+                _ActionButton(
+                  icon: Icons.print_outlined,
+                  color: AppColors.primaryDark,
+                  onTap: () async {
+                    await Printing.layoutPdf(
+                      onLayout: (format) async {
+                        return await PdfGeneratorService.generateCredentialsPdf([emp]);
+                      },
+                      name: 'Credencial_OEP_${emp.ci}.pdf',
+                    );
+                    if (context.mounted) {
+                      _preguntarSiImprimioBien(context, emp);
+                    }
+                  },
+                ),
+              ],
 
-              // IMPRIMIR CREDENCIAL (Mantiene tu lógica)
-              _ActionButton(
-                icon: Icons.print_outlined,
-                color: AppColors.primaryDark,
-                onTap: () async {
-                  await Printing.layoutPdf(
-                    onLayout: (format) async {
-                      return await PdfGeneratorService.generateCredentialsPdf([
-                        emp,
-                      ]);
-                    },
-                    name: 'Credencial_${emp.ci}.pdf',
-                  );
+              // 🔥 EDITAR: Solo Admin y Coordinador
+              if (puedeEditar) ...[
+                const SizedBox(width: 5),
+                _ActionButton(
+                  icon: Icons.edit_outlined,
+                  color: Colors.blue,
+                  onTap: () {
+                    showEditEmployeeSheet(context, emp);
+                  },
+                ),
+              ],
 
-                  if (context.mounted) {
-                    _preguntarSiImprimioBien(context, emp);
-                  }
-                },
-              ),
-
-              const SizedBox(width: 5),
-
-              // 🔥 EDITAR: Abre el BottomSheet con el formulario para editar
-              _ActionButton(
-                icon: Icons.edit_outlined,
-                color: Colors.blue,
-                onTap: () {
-                  showEditEmployeeSheet(context, emp);
-                },
-              ),
-
-              const SizedBox(width: 5),
-
-              // BORRAR (Mantiene tu lógica)
-              _ActionButton(
-                icon: Icons.delete_outline,
-                color: Colors.red,
-                onTap: () {
-                  _mostrarDialogoEliminar(context, emp);
-                },
-              ),
+              // 🔥 BORRAR: Solo Administrador
+              if (puedeEliminar) ...[
+                const SizedBox(width: 5),
+                _ActionButton(
+                  icon: Icons.delete_outline,
+                  color: Colors.red,
+                  onTap: () {
+                    _mostrarDialogoEliminar(context, emp);
+                  },
+                ),
+              ],
             ],
           ),
         ),
@@ -208,21 +176,13 @@ class EmployeeDataSource extends DataTableSource {
     );
   }
 
-  // Widget auxiliar para que los botones se vean uniformes
-  Widget _ActionButton({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _ActionButton({required IconData icon, required Color color, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(5),
       child: Container(
         padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(5),
-        ),
+        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(5)),
         child: Icon(icon, size: 16, color: color),
       ),
     );
@@ -237,7 +197,7 @@ class EmployeeDataSource extends DataTableSource {
 }
 
 // ==========================================
-// DIÁLOGOS (Eliminar e Imprimir)
+// DIÁLOGOS (Eliminar e Imprimir) Mantenidos iguales
 // ==========================================
 
 void _mostrarDialogoEliminar(BuildContext context, Employee emp) {
@@ -248,50 +208,34 @@ void _mostrarDialogoEliminar(BuildContext context, Employee emp) {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: const Row(
           children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.redAccent,
-              size: 28,
-            ),
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
             SizedBox(width: 10),
-            Text("Eliminar Personal"),
+            Text("Eliminar Registro"),
           ],
         ),
-        content: Text(
-          "¿Estás seguro de que deseas eliminar a ${emp.nombre}? Esta acción es permanente y no se puede deshacer.",
-          style: const TextStyle(fontSize: 14),
-        ),
+        content: Text("¿Está seguro de que desea eliminar los datos de ${emp.nombre}? Esta acción retirará al personal de la base de datos.", style: const TextStyle(fontSize: 14)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(), // Cierra sin hacer nada
+            onPressed: () => Navigator.of(ctx).pop(),
             child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () async {
-              Navigator.of(ctx).pop(); // Cerramos el diálogo primero
-
-              // Llamamos al Provider para borrarlo en la BD
+              Navigator.of(ctx).pop(); 
               final provider = context.read<EmployeeProvider>();
               bool success = await provider.deleteEmployee(emp.id);
 
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(
-                      success
-                          ? "Personal eliminado correctamente."
-                          : "Error al eliminar. Intente de nuevo.",
-                    ),
+                    content: Text(success ? "Registro eliminado correctamente." : "Error al eliminar en el servidor."),
                     backgroundColor: success ? Colors.green : Colors.red,
                   ),
                 );
               }
             },
-            child: const Text(
-              "Sí, Eliminar",
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text("Sí, Eliminar", style: TextStyle(color: Colors.white)),
           ),
         ],
       );
@@ -309,49 +253,32 @@ void _preguntarSiImprimioBien(BuildContext context, Employee emp) {
           children: [
             Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
             SizedBox(width: 10),
-            Text("¿Impresión Exitosa?"),
+            Text("Confirmar Impresión"),
           ],
         ),
-        content: Text(
-          "¿Se imprimió correctamente la credencial de ${emp.nombreCompleto}?\n\nSi aceptas, su estado cambiará automáticamente a 'CREDENCIAL IMPRESO'.",
-          style: const TextStyle(fontSize: 14),
-        ),
+        content: Text("¿Se imprimió correctamente la credencial electoral de ${emp.nombreCompleto}?\n\nAl confirmar, el estado cambiará a 'CREDENCIAL IMPRESA'.", style: const TextStyle(fontSize: 14)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              "No, mantener pendiente",
-              style: TextStyle(color: Colors.grey),
-            ),
+            child: const Text("No, mantener estado actual", style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.successGreen,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.successGreen),
             onPressed: () async {
-              Navigator.of(ctx).pop(); // Cerramos el diálogo
-
-              // Llamamos a tu Provider para actualizar la Base de Datos
+              Navigator.of(ctx).pop(); 
               final provider = context.read<EmployeeProvider>();
               bool success = await provider.markAsPrinted(emp);
 
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(
-                      success
-                          ? "Estado actualizado correctamente."
-                          : "Error al actualizar estado.",
-                    ),
+                    content: Text(success ? "Estado actualizado en el padrón." : "Error de sincronización."),
                     backgroundColor: success ? Colors.green : Colors.red,
                   ),
                 );
               }
             },
-            child: const Text(
-              "Sí, actualizar",
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text("Sí, confirmar", style: TextStyle(color: Colors.white)),
           ),
         ],
       );

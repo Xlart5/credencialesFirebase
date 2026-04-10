@@ -11,6 +11,9 @@ import '../widgets/sidebar_filter.dart';
 import '../widgets/employees_table.dart';
 import '../widgets/side_menu.dart';
 
+// 🔥 IMPORTAMOS EL AUTH PROVIDER PARA LEER EL ROL
+import '../../config/provider/auth_provider.dart';
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -34,9 +37,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final provider = context.watch<EmployeeProvider>();
     final seleccionados = provider.selectedForPrint.toList();
 
-    // LÓGICA DE BOTONES FLOTANTES
-    // 🔥 LÓGICA DE BOTONES FLOTANTES (AHORA A PRUEBA DE BALAS)
-    // Usamos .contains para evitar problemas si el backend manda espacios o palabras diferentes
+    // ==========================================
+    // 🛡️ LÓGICA DE ROLES (RBAC)
+    // ==========================================
+    final authProvider = context.watch<AuthProvider>();
+    final String rolActual = authProvider.currentUser?.rol ?? 'OBSERVADOR';
+    final String nombreUsuario = authProvider.currentUser?.username ?? 'Usuario Local';
+
+    // Banderas de Permisos
+    final bool puedeEditar = (rolActual == 'ADMINISTRADOR' || rolActual == 'COORDINADOR');
+    
+    // ==========================================
+
     final bool todosImpresos =
         seleccionados.isNotEmpty &&
         seleccionados.every(
@@ -53,7 +65,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
 
-      floatingActionButton: seleccionados.isEmpty
+      // 🔥 ESCUDO: Si no puede editar O no hay seleccionados, ocultamos los botones flotantes
+      floatingActionButton: (!puedeEditar || seleccionados.isEmpty)
           ? null
           : Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -84,7 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   },
                 ),
 
-                // 2. Botón Azul: Habilitar Personal (Entregar plástico)
+                // 2. Botón Azul: Habilitar Personal
                 if (todosImpresos) ...[
                   const SizedBox(width: 15),
                   FloatingActionButton.extended(
@@ -103,7 +116,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ],
 
-                // 🔥 3. Botón Naranja: Recibir Credencial (Devolución)
+                // 3. Botón Naranja: Recibir Credencial
                 if (todosActivos) ...[
                   const SizedBox(width: 15),
                   FloatingActionButton.extended(
@@ -149,7 +162,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     Text(
-                      "Panel de Administración",
+                      "Identity Dashboard",
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -207,7 +220,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF1A1F24),
+                                  color: rolActual == 'ADMIN' ? const Color(0xFF1A1F24) : Colors.blueGrey,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Icon(
@@ -217,13 +230,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              const Text(
-                                "Administrador",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: AppColors.primaryDark,
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    nombreUsuario.split('@')[0], // Muestra solo el nombre antes del @
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: AppColors.primaryDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    rolActual, // Muestra el ROL real debajo del nombre
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.textGrey,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -347,7 +373,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // 🔥 NUEVO: FUNCIÓN PARA DEVOLVER EL PLÁSTICO
   void _procesarDevolucion(
     BuildContext context,
     List<Employee> empleados,

@@ -17,7 +17,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
   String _categoriaPrincipal = 'TODOS';
   
   String _tipoExterno = 'TODOS';
-  final List<String> _tiposExternosDisponibles = ['TODOS', 'PRENSA', 'OBSERVADOR', 'DELEGADO', 'CANDIDATO', 'PUBLICO GENERAL'];
+  final List<String> _tiposExternosDisponibles = ['TODOS', 'PRENSA', 'OBSERVADOR', 'DELEGADO', 'CANDIDATO', 'PUBLICOGENERAL'];
   
   String _partidoSeleccionado = 'TODOS';
   String _asociacionSeleccionada = 'TODAS';

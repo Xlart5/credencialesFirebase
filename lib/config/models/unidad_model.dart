@@ -30,12 +30,14 @@ class CargoUnidadModel {
   final String nombre;
   final int unidadId;
   final bool activo;
+  final String descripcion; // 🔥 NUEVO
 
   CargoUnidadModel({
     required this.id,
     required this.nombre,
     required this.unidadId,
     required this.activo,
+    required this.descripcion, // 🔥 NUEVO
   });
 
   factory CargoUnidadModel.fromJson(Map<String, dynamic> json) {
@@ -43,7 +45,8 @@ class CargoUnidadModel {
       id: json['id'] ?? 0,
       nombre: json['nombre'] ?? 'Sin Cargo',
       unidadId: json['unidadId'] ?? 0,
-      activo: json['activo'] ?? true, // Por defecto true si viene null
+      activo: json['activo'] ?? true, 
+      descripcion: json['descripcion'] ?? '', // 🔥 NUEVO: Evitamos errores si viene nulo
     );
   }
 }

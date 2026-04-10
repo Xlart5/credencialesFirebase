@@ -291,22 +291,44 @@ class EmployeeProvider extends ChangeNotifier {
     }
   }
 
+ // =========================================================================
+  // 🔥 MÉTODO OPTIMIZADO: DEVOLUCIÓN DE CREDENCIAL MASIVA
+  // Usa el endpoint que recibe el array de IDs en una sola petición HTTP
+  // =========================================================================
   Future<bool> marcarCredencialDevueltaMasivo(List<Employee> empleados) async {
-    bool exitoGeneral = true;
-    for (var emp in empleados) {
-      try {
-        final url = Uri.parse('$_baseUrl/api/estados-personal/${emp.id}/devolver-credencial');
-        final response = await http.put(url, headers: Environment.authHeaders);
-        if (response.statusCode == 200 || response.statusCode == 201) {
+    if (empleados.isEmpty) return false;
+
+    try {
+      final url = Uri.parse('$_baseUrl/api/estados-personal/devolver-credencial/masivo');
+      
+      // 1. Extraemos solo los IDs de la lista de empleados seleccionados
+      final List<int> personalIds = empleados.map((emp) => emp.id).toList();
+
+      // 2. Enviamos un solo paquete al servidor
+      final response = await http.put(
+        url,
+        headers: Environment.authHeaders,
+        body: jsonEncode({
+          "personalIds": personalIds,
+          "observacion": "Devolución masiva de credenciales desde el sistema"
+        }),
+      );
+
+      // 3. Validamos la respuesta
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Actualizamos localmente para que la tabla cambie al instante sin recargar la BD
+        for (var emp in empleados) {
           updateEmployeeLocal(emp.copyWith(estadoActual: "CREDENCIAL DEVUELTO"));
-        } else {
-          exitoGeneral = false;
         }
-      } catch (e) {
-        exitoGeneral = false;
+        return true;
+      } else {
+        print("❌ Error backend masivo: Código ${response.statusCode}");
+        return false;
       }
+    } catch (e) {
+      print('❌ Error al procesar devolución masiva: $e');
+      return false;
     }
-    return exitoGeneral;
   }
 
   Future<bool> registrarFechasProceso(int personalId, DateTime fechaInicio, DateTime fechaFin) async {
@@ -562,6 +584,48 @@ class EmployeeProvider extends ChangeNotifier {
       return false;
     } catch (e) {
       print("Error subiendo foto: $e");
+      return false;
+    }
+  }
+  // =========================================================================
+  // 🔥 CIERRE MASIVO DE CONTRATOS POR CARGO
+  // =========================================================================
+  // =========================================================================
+  // 🔥 CIERRE MASIVO DE CONTRATOS POR CARGO (ACTUALIZADO CON "ACTIVO")
+  // =========================================================================
+  Future<bool> cerrarContratosMasivoPorCargo({
+    required int cargoProcesoId,
+    required DateTime fechaInicio,
+    required DateTime fechaFin,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/api/historiales-cargo-proceso/actualizar-fechas');
+      
+      final payload = {
+        "procesoElectoralId": 1, // Fijo según el requerimiento
+        "cargoProcesoId": cargoProcesoId,
+        "fechaInicio": fechaInicio.toUtc().toIso8601String(),
+        "fechaFin": fechaFin.toUtc().toIso8601String(),
+        "activo": false, // 🔥 NUEVO CAMPO AÑADIDO: 'false' para dar de baja el contrato
+      };
+
+      final response = await http.post(
+        url,
+        headers: Environment.authHeaders,
+        body: jsonEncode(payload),
+      );
+
+      // Agregamos 204 por si el backend responde "No Content" tras una actualización exitosa
+      if (response.statusCode == 200 || response.statusCode == 201 || response.statusCode == 204) {
+        // Refrescamos los datos para que la tabla se actualice inmediatamente
+        await fetchPersonalActivo(); 
+        return true;
+      } else {
+        print("❌ Error Backend: Código ${response.statusCode} - ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("❌ Excepción en cierre masivo: $e");
       return false;
     }
   }

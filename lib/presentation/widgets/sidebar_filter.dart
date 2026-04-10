@@ -5,26 +5,24 @@ import '../../config/provider/employee_provider.dart';
 import '../../config/theme/app_colors.dart';
 
 class SidebarFilter extends StatefulWidget {
-  const SidebarFilter({super.key});
+  // 🔥 NUEVO: Interruptor para ocultar los estados en la pantalla de certificados
+  final bool hideEstados; 
+  const SidebarFilter({super.key, this.hideEstados = false});
 
   @override
   State<SidebarFilter> createState() => _SidebarFilterState();
 }
 
 class _SidebarFilterState extends State<SidebarFilter> {
-  // 🔥 Controlador para abrir el menú sin necesidad de clics
   final MenuController _menuController = MenuController();
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EmployeeProvider>();
 
-    // =========================================================
-    // 🔥 ESTILOS MODERNOS Y LIMPIOS (ADIÓS ESTILO RETRO)
-    // =========================================================
     final MenuStyle modernMenuStyle = MenuStyle(
       backgroundColor: MaterialStateProperty.all(Colors.white),
-      surfaceTintColor: MaterialStateProperty.all(Colors.white), // Mata el "beige" de Material 3
+      surfaceTintColor: MaterialStateProperty.all(Colors.white),
       elevation: MaterialStateProperty.all(6),
       shadowColor: MaterialStateProperty.all(Colors.black.withOpacity(0.15)),
       shape: MaterialStateProperty.all(
@@ -46,10 +44,9 @@ class _SidebarFilterState extends State<SidebarFilter> {
         if (states.contains(MaterialState.hovered)) return Colors.blueGrey.withOpacity(0.08);
         return Colors.white;
       }),
-      overlayColor: MaterialStateProperty.all(Colors.transparent), // Quita la onda gris por defecto
+      overlayColor: MaterialStateProperty.all(Colors.transparent),
       textStyle: MaterialStateProperty.all(const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
     );
-    // =========================================================
 
     return Container(
       width: 260,
@@ -70,7 +67,6 @@ class _SidebarFilterState extends State<SidebarFilter> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. TÍTULO
             Row(
               children: const [
                 Icon(Icons.filter_list, color: AppColors.primaryYellow),
@@ -89,7 +85,6 @@ class _SidebarFilterState extends State<SidebarFilter> {
             const Divider(),
             const SizedBox(height: 15),
 
-            // 2. SECCIÓN UNIDADES Y CARGOS
             const Text(
               "UNIDAD Y CARGO",
               style: TextStyle(
@@ -101,10 +96,8 @@ class _SidebarFilterState extends State<SidebarFilter> {
             ),
             const SizedBox(height: 10),
 
-            // 🔥 SOLUCIÓN DEFINITIVA: MouseRegion + MenuAnchor
             MouseRegion(
               onEnter: (_) {
-                // Abre el menú al instante cuando el mouse pasa por encima
                 if (!_menuController.isOpen) {
                   _menuController.open();
                 }
@@ -119,8 +112,6 @@ class _SidebarFilterState extends State<SidebarFilter> {
                     child: const Text('TODAS LAS UNIDADES', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
                   ),
                   const PopupMenuDivider(),
-                  
-                  // Renderizamos la cascada
                   ...provider.unidadesDisponibles.map((unidad) {
                     return SubmenuButton(
                       menuStyle: modernMenuStyle,
@@ -143,7 +134,6 @@ class _SidebarFilterState extends State<SidebarFilter> {
                     );
                   }).toList(),
                 ],
-                // El diseño visual de la caja
                 builder: (context, controller, child) {
                   return Container(
                     width: double.infinity,
@@ -161,7 +151,7 @@ class _SidebarFilterState extends State<SidebarFilter> {
                                 ? 'Seleccionar Unidad...'
                                 : '${provider.selectedUnidadFilter}\n${provider.selectedCargoFilter ?? 'Todos los cargos'}',
                             style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark, fontSize: 11, height: 1.3),
-                            maxLines: 3, // Ya no se corta el texto
+                            maxLines: 3, 
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -173,47 +163,41 @@ class _SidebarFilterState extends State<SidebarFilter> {
               ),
             ),
 
-            const SizedBox(height: 25),
-
-            // 3. SECCIÓN ESTADOS
-            const Text(
-              "ESTADO",
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-                letterSpacing: 1,
+            // 🔥 APLICAMOS EL INTERRUPTOR AQUÍ
+            if (!widget.hideEstados) ...[
+              const SizedBox(height: 25),
+              const Text(
+                "ESTADO",
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                  letterSpacing: 1,
+                ),
               ),
-            ),
-            const SizedBox(height: 15),
+              const SizedBox(height: 15),
 
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: provider.estadosDisponibles.map((estado) {
-                final isSelected = provider.selectedEstadoFilter == estado;
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: provider.estadosDisponibles.map((estado) {
+                  final isSelected = provider.selectedEstadoFilter == estado;
+                  Color baseColor = Colors.grey;
+                  if (estado.toUpperCase().contains('IMPRESO')) baseColor = Colors.green;
+                  if (estado.toUpperCase().contains('REGISTRADO') || estado.toUpperCase().contains('PENDIENTE')) baseColor = Colors.orange;
 
-                Color baseColor = Colors.grey;
-                if (estado.toUpperCase().contains('IMPRESO')) {
-                  baseColor = Colors.green;
-                }
-                if (estado.toUpperCase().contains('REGISTRADO') ||
-                    estado.toUpperCase().contains('PENDIENTE')) {
-                  baseColor = Colors.orange;
-                }
-
-                return _buildEstadoChip(
-                  estado: estado,
-                  isSelected: isSelected,
-                  baseColor: baseColor,
-                  onTap: () => provider.toggleEstadoFilter(estado),
-                );
-              }).toList(),
-            ),
+                  return _buildEstadoChip(
+                    estado: estado,
+                    isSelected: isSelected,
+                    baseColor: baseColor,
+                    onTap: () => provider.toggleEstadoFilter(estado),
+                  );
+                }).toList(),
+              ),
+            ],
 
             const SizedBox(height: 25),
 
-            // 4. BOTÓN LIMPIAR FILTROS
             if (provider.selectedUnidadFilter != null ||
                 provider.selectedCargoFilter != null ||
                 provider.selectedEstadoFilter != null ||
@@ -240,9 +224,6 @@ class _SidebarFilterState extends State<SidebarFilter> {
     );
   }
 
-  // =====================================
-  // WIDGET AUXILIAR: BOTÓN DE ESTADO (CHIP)
-  // =====================================
   Widget _buildEstadoChip({
     required String estado,
     required bool isSelected,
