@@ -629,6 +629,85 @@ class EmployeeProvider extends ChangeNotifier {
       return false;
     }
   }
+
+  // =========================================================================
+  // 🔥 MÓDULO FIREBASE: GUARDAR CONTRATO FINALIZADO
+  // =========================================================================
+  // 🔥 DENTRO DE employee_provider.dart
+
+Future<bool> finalizarContratoEnFirebase({
+  required Employee emp,
+  required DateTime fechaInicio,
+  required DateTime fechaFin,
+  required String cargoDescripcion, // "Servicios de Consultoria..." o "Servicio de Terceros"
+  required String tipoContrato,      // "Administrativo I", "II" o "III"
+}) async {
+  try {
+    final firestore = FirebaseFirestore.instance;
+    final String docId = emp.id.toString();
+
+    await firestore.collection('personal_historico').doc(docId).set({
+      'idBackend': emp.id,
+      'nombreCompleto': emp.nombreCompleto,
+      'ci': emp.ci,
+      'ultimaUnidad': emp.unidad,
+      'ultimoCargo': emp.cargo,
+      'fechaRegistroFirebase': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    // Guardamos en la subcolección con los nuevos campos
+    await firestore.collection('personal_historico').doc(docId).collection('contratos_cerrados').add({
+      'cargo': emp.cargo,
+      'unidad': emp.unidad,
+      'fechaInicio': fechaInicio.toIso8601String(),
+      'fechaFin': fechaFin.toIso8601String(),
+      'cargoDescripcion': cargoDescripcion, // 🔥 NUEVO
+      'tipoContrato': tipoContrato,           // 🔥 NUEVO
+      'impreso': false,
+      'fechaRegistro': FieldValue.serverTimestamp(),
+    });
+
+    return true;
+  } catch (e) {
+    print("❌ Error Firebase: $e");
+    return false;
+  }
+}
+  // =========================================================================
+  // 🔥 MÓDULO FIREBASE: LEER PERSONAS CON HISTORIAL
+  // =========================================================================
+  
+  // A. Obtener la lista de personas que están en el archivo histórico
+  Future<List<Map<String, dynamic>>> obtenerPersonasHistoricasFirebase() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('personal_historico').get();
+      return snapshot.docs.map((doc) => doc.data()).toList();
+    } catch (e) {
+      print("Error leyendo personas de Firebase: $e");
+      return [];
+    }
+  }
+
+  // B. Obtener todos los contratos cerrados de una persona específica
+  Future<List<Map<String, dynamic>>> obtenerContratosDePersonaFirebase(String personalIdBackend) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('personal_historico')
+          .doc(personalIdBackend)
+          .collection('contratos_cerrados')
+          .orderBy('fechaRegistro', descending: true) // Los más recientes primero
+          .get();
+
+      return snapshot.docs.map((doc) {
+        var data = doc.data();
+        data['idFirebase'] = doc.id; // Guardamos el ID del documento por si acaso
+        return data;
+      }).toList();
+    } catch (e) {
+      print("Error leyendo contratos de Firebase: $e");
+      return [];
+    }
+  }
   // =========================================================================
   // 🔥 MIGRACIÓN DE DATOS A FIREBASE FIRESTORE
   // =========================================================================

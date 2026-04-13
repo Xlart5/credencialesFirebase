@@ -35,7 +35,7 @@ class Employee {
     required this.qrUrl,
     required this.Circu,
     required this.ImageId,
-    this.tipo = 'EVENTUAL', // Valor por defecto
+    this.tipo = 'EVENTUAL',  // Valor por defecto
   });
 
   String get nombreCompleto =>

@@ -20,33 +20,65 @@ class CertificadosMasivoScreen extends StatefulWidget {
 
 class _CertificadosMasivoScreenState extends State<CertificadosMasivoScreen> {
   String _searchQuery = "";
+  List<Employee> _empleadosHistoricos = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 🔥 AHORA LLAMA A LA FUNCIÓN AISLADA
-      context.read<EmployeeProvider>().fetchPersonalParaMasivo();
-    });
+    _cargarHistoricosDesdeFirebase();
   }
 
-  // 🔥 Función interna para extraer el cargo real del historial
-  String _extraerCargoDelHistorial(dynamic h) {
-    if (h['cargoProcesoNombre'] != null)
-      return h['cargoProcesoNombre'].toString();
-    if (h['cargoNombre'] != null) return h['cargoNombre'].toString();
-    if (h['cargo'] != null) return h['cargo'].toString();
-    return "CARGO HISTÓRICO";
+  // 🔥 DESCARGAMOS EL PERSONAL HISTÓRICO DE FIREBASE AL INICIAR
+// 🔥 DESCARGAMOS EL PERSONAL HISTÓRICO DE FIREBASE AL INICIAR
+  Future<void> _cargarHistoricosDesdeFirebase() async {
+    final provider = context.read<EmployeeProvider>();
+    provider.clearCertificadoSelection();
+
+    final personasRaw = await provider.obtenerPersonasHistoricasFirebase();
+    
+    if (mounted) {
+      setState(() {
+        // Mapeamos los datos de Firebase a nuestra clase Employee
+        _empleadosHistoricos = personasRaw.map((p) => Employee(
+          id: p['idBackend'] ?? 0,
+          nombre: p['nombreCompleto'] ?? 'Sin Nombre',
+          apellidoPaterno: '',
+          apellidoMaterno: '',
+          carnetIdentidad: p['ci'] ?? '',
+          correo: '',
+          celular: '',
+          accesoComputo: false,
+          estadoActual: 'CONTRATO TERMINADO',
+          cargo: p['ultimoCargo'] ?? 'Sin Cargo',
+          unidad: p['ultimaUnidad'] ?? 'Sin Unidad',
+          
+          // 🔥 AQUÍ AGREGAMOS LOS CAMPOS REQUERIDOS FALTANTES CON VALORES POR DEFECTO
+          photoUrl: '', // o 'imagen': '' dependiendo de cómo se llame exactamente en tu modelo
+          qrUrl: '', // o 'qr': ''
+         
+          tipo: 'HISTORICO', Circu: '', ImageId: 0,
+          // colorEstado: Colors.grey, <-- Descomenta esta línea si también te pide el color
+        )).toList();
+        _isLoading = false;
+      });
+    }
   }
 
-  Future<void> _imprimirMasivo(
-    BuildContext context,
-    EmployeeProvider provider,
-  ) async {
+  Future<void> _imprimirMasivo(BuildContext context, EmployeeProvider provider) async {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+      builder: (_) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 20),
+            Text("Generando Certificados desde Firebase..."),
+          ],
+        ),
+      ),
     );
 
     List<CertificadoData> datosAImprimir = [];
@@ -54,26 +86,16 @@ class _CertificadosMasivoScreenState extends State<CertificadosMasivoScreen> {
     final formatPdf = DateFormat('dd \'de\' MMMM \'de\' yyyy', 'es');
 
     for (var emp in provider.selectedForCertificados) {
-      final historial = await provider.obtenerHistorialPersonal(emp.id);
-      // Filtramos contratos en false
-      final contratosCerrados = historial
-          .where((h) => h['activo'] == false)
-          .toList();
-
-      for (var contrato in contratosCerrados) {
-        DateTime inicio = contrato['fechaInicio'] != null
-            ? DateTime.parse(contrato['fechaInicio'])
-            : DateTime.now();
-        DateTime fin = contrato['fechaFin'] != null
-            ? DateTime.parse(contrato['fechaFin'])
-            : DateTime.now();
-
-        // 🔥 Usamos el cargo real del historial para sobreescribir el null
-        String cargoReal = _extraerCargoDelHistorial(contrato);
+      // 🔥 OBTENEMOS LOS CONTRATOS CERRADOS DE FIREBASE
+      final contratos = await provider.obtenerContratosDePersonaFirebase(emp.id.toString());
+      
+      for (var contrato in contratos) {
+        DateTime inicio = DateTime.parse(contrato['fechaInicio']);
+        DateTime fin = DateTime.parse(contrato['fechaFin']);
 
         datosAImprimir.add(
           CertificadoData(
-            employee: emp.copyWith(cargo: cargoReal),
+            employee: emp.copyWith(cargo: contrato['cargo']),
             fechaInicio: formatPdf.format(inicio),
             fechaFin: formatPdf.format(fin),
           ),
@@ -84,32 +106,29 @@ class _CertificadosMasivoScreenState extends State<CertificadosMasivoScreen> {
     if (mounted) Navigator.pop(context);
 
     if (datosAImprimir.isNotEmpty) {
-      final pdfBytes = await CertificatePdfService.generateCertificadosPdf(
-        datosAImprimir,
-      );
+      final pdfBytes = await CertificatePdfService.generateCertificadosPdf(datosAImprimir);
       await Printing.layoutPdf(
         onLayout: (_) async => pdfBytes,
         name: 'Lote_Certificados.pdf',
       );
       provider.clearCertificadoSelection();
     } else {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("No se encontraron contratos cerrados (false)"),
+            content: Text("No se encontraron contratos para imprimir"),
             backgroundColor: Colors.orange,
           ),
         );
+      }
     }
   }
 
-  // En tu método build:
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EmployeeProvider>();
 
-    // 🔥 AHORA FILTRA SOBRE LA LISTA DE MASIVO, NO LA PRINCIPAL
-    final listaFiltrada = provider.empleadosMasivo.where((emp) {
+    final listaFiltrada = _empleadosHistoricos.where((emp) {
       return emp.ci.contains(_searchQuery) ||
           emp.nombreCompleto.toLowerCase().contains(_searchQuery.toLowerCase());
     }).toList();
@@ -117,43 +136,43 @@ class _CertificadosMasivoScreenState extends State<CertificadosMasivoScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          "Impresión Masiva de Historiales",
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text("Impresión Masiva de Historiales", style: TextStyle(color: Colors.white)),
         backgroundColor: AppColors.primaryDark,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: () {
+              setState(() => _isLoading = true);
+              _cargarHistoricosDesdeFirebase();
+            },
+          )
+        ],
       ),
       floatingActionButton: provider.selectedForCertificados.isEmpty
           ? null
           : FloatingActionButton.extended(
               backgroundColor: Colors.green,
               onPressed: () => _imprimirMasivo(context, provider),
-              label: Text(
-                "Imprimir Seleccionados (${provider.selectedForCertificados.length})",
-              ),
+              label: Text("Imprimir Seleccionados (${provider.selectedForCertificados.length})"),
               icon: const Icon(Icons.print),
             ),
-      body: Padding(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator()) 
+        : Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              "Buscador Global de Certificados",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryDark,
-              ),
+              "Buscador de Certificados (Firebase)",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
             ),
             const SizedBox(height: 20),
             TextField(
               decoration: InputDecoration(
                 hintText: "Buscar por CI o Nombre...",
                 prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
               onChanged: (val) => setState(() => _searchQuery = val),
             ),
@@ -162,12 +181,11 @@ class _CertificadosMasivoScreenState extends State<CertificadosMasivoScreen> {
               child: Theme(
                 data: Theme.of(context).copyWith(cardColor: Colors.white),
                 child: PaginatedDataTable(
-                  header: const Text(
-                    "Seleccione personal para imprimir contratos en 'false'",
-                  ),
+                  header: const Text("Personal con historial archivado"),
                   columns: const [
                     DataColumn(label: Text("Cédula (CI)")),
                     DataColumn(label: Text("Nombre Completo")),
+                    DataColumn(label: Text("Último Cargo")),
                     DataColumn(label: Text("Acciones")),
                   ],
                   source: CertificadosDataSource(listaFiltrada, context),
@@ -199,18 +217,14 @@ class CertificadosDataSource extends DataTableSource {
       selected: provider.selectedForCertificados.contains(emp),
       onSelectChanged: (val) => provider.toggleCertificadoSelection(emp),
       cells: [
-        DataCell(
-          Text(emp.ci, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ),
+        DataCell(Text(emp.ci, style: const TextStyle(fontWeight: FontWeight.bold))),
         DataCell(Text(emp.nombreCompleto)),
+        DataCell(Text(emp.cargo, style: const TextStyle(fontSize: 12, color: Colors.grey))),
         DataCell(
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
             onPressed: () => showHistorialPersonalSheet(context, emp),
-            child: const Text(
-              "Ver Historial",
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text("Ver Historial", style: TextStyle(color: Colors.white)),
           ),
         ),
       ],

@@ -24,11 +24,7 @@ class HistorialPersonalSheet extends StatelessWidget {
   const HistorialPersonalSheet({super.key, required this.employee});
 
   String _formatFecha(dynamic fechaRaw) {
-    if (fechaRaw == null ||
-        fechaRaw.toString() == "null" ||
-        fechaRaw.toString().isEmpty) {
-      return "Sin fecha";
-    }
+    if (fechaRaw == null || fechaRaw.toString().isEmpty) return "Sin fecha";
     try {
       DateTime dt = DateTime.parse(fechaRaw.toString());
       return DateFormat('dd/MM/yyyy').format(dt);
@@ -37,35 +33,20 @@ class HistorialPersonalSheet extends StatelessWidget {
     }
   }
 
-  // 🔥 Extracción del cargo usando el campo real del historial
-  String _obtenerNombreCargo(dynamic h) {
-    if (h['cargoProcesoNombre'] != null)
-      return h['cargoProcesoNombre'].toString();
-    if (h['cargoNombre'] != null) return h['cargoNombre'].toString();
-    if (h['cargo'] != null) return h['cargo'].toString();
-    return "CARGO NO REGISTRADO";
-  }
-
-  Future<void> _imprimirUnico(BuildContext context, dynamic h) async {
+  Future<void> _imprimirUnico(BuildContext context, Map<String, dynamic> contratoFirebase) async {
     await initializeDateFormatting('es', null);
     final formatPdf = DateFormat('dd \'de\' MMMM \'de\' yyyy', 'es');
 
-    DateTime inicio = h['fechaInicio'] != null
-        ? DateTime.parse(h['fechaInicio'])
-        : DateTime.now();
-    DateTime fin = h['fechaFin'] != null
-        ? DateTime.parse(h['fechaFin'])
-        : DateTime.now();
+    DateTime inicio = DateTime.parse(contratoFirebase['fechaInicio']);
+    DateTime fin = DateTime.parse(contratoFirebase['fechaFin']);
 
     final datos = CertificadoData(
-      employee: employee.copyWith(cargo: _obtenerNombreCargo(h)),
+      employee: employee.copyWith(cargo: contratoFirebase['cargo'] ?? 'Sin Cargo'),
       fechaInicio: formatPdf.format(inicio),
       fechaFin: formatPdf.format(fin),
     );
 
-    final pdfBytes = await CertificatePdfService.generateCertificadosPdf([
-      datos,
-    ]);
+    final pdfBytes = await CertificatePdfService.generateCertificadosPdf([datos]);
     await Printing.layoutPdf(
       onLayout: (_) async => pdfBytes,
       name: 'Certificado_${employee.ci}.pdf',
@@ -100,11 +81,8 @@ class HistorialPersonalSheet extends StatelessWidget {
                     const SizedBox(width: 15),
                     Expanded(
                       child: Text(
-                        "Historial de Contratos\n${employee.nombre}",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        "Archivo Histórico Firebase\n${employee.nombreCompleto}",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                     ),
                     IconButton(
@@ -115,15 +93,21 @@ class HistorialPersonalSheet extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: FutureBuilder<List<dynamic>>(
-                  future: provider.obtenerHistorialPersonal(employee.id),
+                // 🔥 LLAMAMOS A FIREBASE
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: provider.obtenerContratosDePersonaFirebase(employee.id.toString()),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting)
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
-                    if (snapshot.hasError)
+                    }
+                    if (snapshot.hasError) {
                       return Center(child: Text("Error: ${snapshot.error}"));
-                    if (!snapshot.hasData || snapshot.data!.isEmpty)
-                      return const Center(child: Text("No hay registros."));
+                    }
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(
+                        child: Text("Esta persona no tiene contratos archivados en Firebase.", style: TextStyle(color: Colors.grey)),
+                      );
+                    }
 
                     final historiales = snapshot.data!;
 
@@ -132,37 +116,26 @@ class HistorialPersonalSheet extends StatelessWidget {
                       itemCount: historiales.length,
                       itemBuilder: (ctx, i) {
                         final h = historiales[i];
-                        bool esActivo = h['activo'] == true;
 
                         return Card(
                           margin: const EdgeInsets.only(bottom: 15),
                           elevation: 2,
-                          color: esActivo ? Colors.green.shade50 : Colors.white,
+                          color: Colors.white,
                           child: ListTile(
                             contentPadding: const EdgeInsets.all(15),
-                            leading: CircleAvatar(
-                              backgroundColor: esActivo
-                                  ? Colors.green
-                                  : Colors.grey,
-                              child: const Icon(
-                                Icons.work,
-                                color: Colors.white,
-                              ),
+                            leading: const CircleAvatar(
+                              backgroundColor: Colors.grey,
+                              child: Icon(Icons.verified, color: Colors.white),
                             ),
                             title: Text(
-                              _obtenerNombreCargo(h).toUpperCase(),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              (h['cargo'] ?? 'Sin Cargo').toString().toUpperCase(),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             subtitle: Text(
-                              "Inicio: ${_formatFecha(h['fechaInicio'])}  •  Fin: ${_formatFecha(h['fechaFin'])}\nEstado: ${esActivo ? 'EN CURSO' : 'FINALIZADO'}",
+                              "Unidad: ${h['unidad'] ?? 'N/A'}\nInicio: ${_formatFecha(h['fechaInicio'])}  •  Fin: ${_formatFecha(h['fechaFin'])}\nEstado: ARCHIVADO",
                             ),
                             trailing: IconButton(
-                              icon: const Icon(
-                                Icons.print,
-                                color: AppColors.primaryDark,
-                              ),
+                              icon: const Icon(Icons.print, color: AppColors.primaryDark),
                               onPressed: () => _imprimirUnico(context, h),
                             ),
                           ),
@@ -170,26 +143,6 @@ class HistorialPersonalSheet extends StatelessWidget {
                       },
                     );
                   },
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade50,
-                      foregroundColor: Colors.blue.shade800,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      elevation: 0,
-                    ),
-                    onPressed: () => showNuevoContratoSheet(context, employee),
-                    icon: const Icon(Icons.person_add_alt_1),
-                    label: const Text(
-                      "Asignar Nuevo Contrato",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
                 ),
               ),
             ],
