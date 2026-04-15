@@ -41,9 +41,13 @@ class HistorialPersonalSheet extends StatelessWidget {
     DateTime fin = DateTime.parse(contratoFirebase['fechaFin']);
 
     final datos = CertificadoData(
-      employee: employee.copyWith(cargo: contratoFirebase['cargo'] ?? 'Sin Cargo'),
+      employee: employee, // Empleado intacto
       fechaInicio: formatPdf.format(inicio),
       fechaFin: formatPdf.format(fin),
+      // Datos del certificado
+      cargoNombre: contratoFirebase['cargo'] ?? employee.cargo,
+      cargoDescripcion: contratoFirebase['cargoDescripcion'] ?? 'Servicio de Terceros',
+      tipoContrato: contratoFirebase['tipoContrato'] ?? 'Administrativo I',
     );
 
     final pdfBytes = await CertificatePdfService.generateCertificadosPdf([datos]);

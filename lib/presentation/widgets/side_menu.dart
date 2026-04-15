@@ -1,17 +1,36 @@
-import 'package:carnetizacion/config/provider/employee_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/provider/auth_provider.dart';
 import '../../config/theme/app_colors.dart';
 
-class SideMenu extends StatelessWidget {
+class SideMenu extends StatefulWidget {
   const SideMenu({super.key});
 
   @override
+  State<SideMenu> createState() => _SideMenuState();
+}
+
+class _SideMenuState extends State<SideMenu> {
+  bool _esConsulta = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarRol();
+  }
+
+  Future<void> _cargarRol() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _esConsulta = prefs.getString('rol') == 'CONSULTA';
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Detectamos la ruta actual para resaltar el botón activo
     final String location = GoRouterState.of(context).uri.toString();
 
     return Drawer(
@@ -74,24 +93,29 @@ class SideMenu extends StatelessWidget {
                     context.go('/');
                   },
                 ),
-                _DrawerItem(
-                  icon: Icons.person_add_alt_1_outlined,
-                  text: "Unidades y Cargos",
-                  isActive: location == '/Unidades',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/Unidades');
-                  },
-                ),
-                _DrawerItem(
-                  icon: Icons.print_outlined,
-                  text: "Impresión Credenciales",
-                  isActive: location == '/impresion',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/impresion');
-                  },
-                ),
+                
+                if (!_esConsulta)
+                  _DrawerItem(
+                    icon: Icons.person_add_alt_1_outlined,
+                    text: "Unidades y Cargos",
+                    isActive: location == '/Unidades',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/Unidades');
+                    },
+                  ),
+                  
+                if (!_esConsulta)
+                  _DrawerItem(
+                    icon: Icons.print_outlined,
+                    text: "Impresión Credenciales",
+                    isActive: location == '/impresion',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/impresion');
+                    },
+                  ),
+                  
                 _DrawerItem(
                   icon: Icons.workspace_premium,
                   text: "Certificados",
@@ -101,109 +125,90 @@ class SideMenu extends StatelessWidget {
                     context.go('/certificados');
                   },
                 ),
-                _DrawerItem(
-                  icon: Icons.qr_code,
-                  text: "Generar QRs Externos",
-                  isActive:
-                      location ==
-                      '/generar-Externos', // Asegúrate de que esta ruta exista en tu app_router
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/generar-Externos');
-                  },
-                ),
+                
+                if (!_esConsulta)
+                  _DrawerItem(
+                    icon: Icons.qr_code,
+                    text: "Generar QRs Externos",
+                    isActive: location == '/generar-Externos', 
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/generar-Externos');
+                    },
+                  ),
 
-                // 🔥 SECCIÓN: MONITORES DE ACCESO (NUEVA ARQUITECTURA)
-                const Padding(
-                  padding: EdgeInsets.only(top: 20, bottom: 10, left: 15),
-                  child: Text(
-                    "MONITORES DE PUERTA",
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
+                if (!_esConsulta) ...[
+                  const Padding(
+                    padding: EdgeInsets.only(top: 20, bottom: 10, left: 15),
+                    child: Text(
+                      "MONITORES DE PUERTA",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
                     ),
                   ),
-                ),
 
-                _DrawerItem(
-                  icon: Icons.badge_outlined,
-                  text: "Monitor Eventuales",
-                  isActive: location == '/acceso/eventuales',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/acceso/eventuales');
-                  },
-                ),
-                _DrawerItem(
-                  icon: Icons.login_rounded,
-                  text: "Externos - Ingreso",
-                  isActive: location == '/acceso/externos/ingreso',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/acceso/externos/ingreso');
-                  },
-                ),
-                _DrawerItem(
-                  icon: Icons.logout_rounded,
-                  text: "Externos - Salida",
-                  isActive: location == '/acceso/externos/salida',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/acceso/externos/salida');
-                  },
-                ),
-                _DrawerItem(
-                  icon: Icons.history_rounded,
-                  text: "Historial de Acceso",
-                  isActive: location == '/acceso/Historial',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/acceso/Historial');
-                  },
-                ),
-              //  _DrawerItem(
-           //       icon: Icons.history_rounded,
-           //       text: "mIGRAR",
-           //       isActive: location == '/acceso/Historial',
-          //        onTap: () async{
-           //         ScaffoldMessenger.of(context).showSnackBar(
-   //   const SnackBar(content: Text('Iniciando migración a Firebase...'))
-   // );
-    
-    // Llamas a la función del Provider
-   // await context.read<EmployeeProvider>().migrarEventualesAFirebase();
-    
-    // Y un mensaje cuando termine
- //   ScaffoldMessenger.of(context).showSnackBar(
-  //    const SnackBar(content: Text('Migración completada con éxito.'))
-  //  );
-   //               },
-     //           ),
+                  _DrawerItem(
+                    icon: Icons.badge_outlined,
+                    text: "Monitor Eventuales",
+                    isActive: location == '/acceso/eventuales',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/acceso/eventuales');
+                    },
+                  ),
+                  _DrawerItem(
+                    icon: Icons.login_rounded,
+                    text: "Externos - Ingreso",
+                    isActive: location == '/acceso/externos/ingreso',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/acceso/externos/ingreso');
+                    },
+                  ),
+                  _DrawerItem(
+                    icon: Icons.logout_rounded,
+                    text: "Externos - Salida",
+                    isActive: location == '/acceso/externos/salida',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/acceso/externos/salida');
+                    },
+                  ),
+                  _DrawerItem(
+                    icon: Icons.history_rounded,
+                    text: "Historial de Acceso",
+                    isActive: location == '/acceso/Historial',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/acceso/Historial');
+                    },
+                  ),
 
-                const Divider(height: 30), // Separador visual
-                // 🔥 SECCIÓN: OTROS
-                _DrawerItem(
-                  icon: Icons.computer_outlined,
-                  text: "Acceso a Cómputo",
-                  isActive: location == '/computo',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/computo');
-                  },
-                ),
-                _DrawerItem(
-                  icon: Icons.text_snippet_rounded,
-                  text: "Reportes",
-                  isActive: location == '/reportes',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push(
-                      '/reportes',
-                    ); // Nota: push está bien si quieres volver atrás con la flecha
-                  },
-                ),
+                  const Divider(height: 30), 
+                  
+                  _DrawerItem(
+                    icon: Icons.computer_outlined,
+                    text: "Acceso a Cómputo",
+                    isActive: location == '/computo',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/computo');
+                    },
+                  ),
+                  _DrawerItem(
+                    icon: Icons.text_snippet_rounded,
+                    text: "Reportes",
+                    isActive: location == '/reportes',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/reportes'); 
+                    },
+                  ),
+                ]
               ],
             ),
           ),
@@ -213,7 +218,6 @@ class SideMenu extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             child: InkWell(
               onTap: () async {
-                // LECTURA CORRECTA DEL PROVIDER
                 await context.read<AuthProvider>().logout();
 
                 if (context.mounted) {
@@ -224,7 +228,7 @@ class SideMenu extends StatelessWidget {
               child: Container(
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50, // Un rojo más sutil de fondo
+                  color: Colors.red.shade50, 
                   border: Border.all(color: Colors.red.shade200, width: 1),
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -254,7 +258,6 @@ class SideMenu extends StatelessWidget {
   }
 }
 
-// --- WIDGET AUXILIAR ---
 class _DrawerItem extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -289,7 +292,7 @@ class _DrawerItem extends StatelessWidget {
           style: TextStyle(
             color: isActive ? AppColors.textDark : Colors.grey[700],
             fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-            fontSize: 13, // Letra un poco más ajustada para que quepa bien
+            fontSize: 13, 
           ),
         ),
         onTap: onTap,

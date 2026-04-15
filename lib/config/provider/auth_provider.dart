@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:carnetizacion/config/constans/constants/environment.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart'; // 🔥 Importante para guardar en disco
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -14,7 +14,6 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String get errorMessage => _errorMessage;
 
-  // Si tienes un token en el modelo, el usuario está autenticado
   bool get isAuthenticated =>
       _currentUser != null && _currentUser!.token.isNotEmpty;
 
@@ -25,7 +24,6 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final url = Uri.parse('${Environment.apiUrl}/api/auth/login');
-
       final Map<String, dynamic> bodyData = {
         "username": username,
         "password": password,
@@ -34,33 +32,33 @@ class AuthProvider extends ChangeNotifier {
 
       final response = await http.post(
         url,
-        headers: Environment
-            .authHeaders, // En el login enviará el Content-Type sin problemas
+        headers: Environment.authHeaders,
         body: jsonEncode(bodyData),
       );
 
       if (response.statusCode == 200) {
         final decodedData = json.decode(utf8.decode(response.bodyBytes));
         _currentUser = UserModel.fromJson(decodedData);
-
-        // 🔥 1. GUARDAMOS EL TOKEN EN LA VARIABLE GLOBAL INMEDIATAMENTE
         Environment.token = _currentUser!.token;
 
-        // 🔥 2. SI MARCÓ "RECORDAR", LO GUARDAMOS EN EL DISCO/NAVEGADOR
-        if (recordar) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('jwt_token', _currentUser!.token);
+        final prefs = await SharedPreferences.getInstance();
 
-          // (Opcional pero recomendado) Guardar los datos del usuario en un string JSON
-          // para poder reconstruir el UserModel si presiona F5 en la web.
+        // 🔥 NUEVA LÓGICA RBAC SÚPER SIMPLE: Guardamos Rol y Nombre de Unidad
+        String userRol = decodedData['rol']?.toString().toUpperCase() ?? '';
+        String nombreUnidad = decodedData['descripcion']?.toString() ?? ''; // La descripción es la Unidad
+        
+        await prefs.setString('rol', userRol);
+        await prefs.setString('nombreUnidad', nombreUnidad);
+
+        if (recordar) {
+          await prefs.setString('jwt_token', _currentUser!.token);
           await prefs.setString('user_data', jsonEncode(decodedData));
         }
 
         _isLoading = false;
         notifyListeners();
-        return true; // Login exitoso
+        return true; 
       } else {
-        // Manejar errores (ej. 401 Unauthorized)
         _errorMessage = 'Usuario o contraseña incorrectos.';
         _isLoading = false;
         notifyListeners();
@@ -74,26 +72,29 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // 🔥 3. LOGOUT MEJORADO (Ahora es asíncrono para borrar datos locales)
   Future<void> logout() async {
     _currentUser = null;
-
-    // Vaciamos la variable global para que ya no mande el token en los headers
     Environment.token = null;
 
-    // Borramos cualquier rastro del token en el almacenamiento local
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('jwt_token');
     await prefs.remove('user_data');
+    await prefs.remove('rol');           // Limpiar rol
+    await prefs.remove('nombreUnidad');  // Limpiar unidad
+    await prefs.remove('personal_cache');
 
     notifyListeners();
   }
 
-  // 🔥 NUEVO: Método para restaurar la sesión al presionar F5
-  void restaurarSesion(String token, String userDataJson) {
-    Environment.token = token; // Aseguramos el token global
+  void restaurarSesion(String token, String userDataJson) async {
+    Environment.token = token; 
     final decodedData = json.decode(userDataJson);
     _currentUser = UserModel.fromJson(decodedData);
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('rol', decodedData['rol']?.toString().toUpperCase() ?? '');
+    await prefs.setString('nombreUnidad', decodedData['descripcion']?.toString() ?? '');
+
     notifyListeners();
   }
 }

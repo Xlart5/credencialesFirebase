@@ -1,143 +1,193 @@
 import 'dart:typed_data';
-import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/date_symbol_data_local.dart';
-import '../models/employee_model.dart';
+import '../../config/models/employee_model.dart';
 
-// 🔥 CLASE CLAVE: Encapsula al empleado junto con las fechas de su contrato
+// 🔥 EL MODELO INDEPENDIENTE
 class CertificadoData {
-  final Employee employee;
+  final Employee employee; 
   final String fechaInicio;
   final String fechaFin;
+  final String cargoNombre;
+  final String cargoDescripcion;
+  final String tipoContrato;
 
   CertificadoData({
     required this.employee,
     required this.fechaInicio,
     required this.fechaFin,
+    required this.cargoNombre,
+    required this.cargoDescripcion,
+    required this.tipoContrato, 
   });
 }
 
 class CertificatePdfService {
-  // 🔥 RECIBE LA LISTA DE DATOS ENCAPSULADOS
-  static Future<Uint8List> generateCertificadosPdf(
-    List<CertificadoData> listaDatos,
-  ) async {
-    final pdf = pw.Document();
+  static const String _logoPath = 'assets/images/logo_ted.png'; 
+
+  static Future<Uint8List> generateCertificadosPdf(List<CertificadoData> dataList) async {
+    final doc = pw.Document();
+    final logoImage = pw.MemoryImage((await rootBundle.load(_logoPath)).buffer.asUint8List());
+
     await initializeDateFormatting('es', null);
+    final DateFormat formatter = DateFormat('dd \'de\' MMMM \'de\' yyyy', 'es');
+    String fechaActualStr = formatter.format(DateTime.now());
 
-    final tedLogoUrl = 'https://i.imgur.com/s9ukc28.png';
-    final tedLogoResponse = await http.get(Uri.parse(tedLogoUrl));
-    final tedLogoImage = pw.MemoryImage(tedLogoResponse.bodyBytes);
-
-    for (var data in listaDatos) {
+    for (var data in dataList) {
       final emp = data.employee;
 
-      pdf.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.letter,
-          margin: const pw.EdgeInsets.all(50),
-          build: (pw.Context context) {
-            final fechaHoy = DateFormat(
-              'dd \'de\' MMMM \'de\' yyyy',
-              'es',
-            ).format(DateTime.now());
+      final String funcionesCompuestas = 
+          '${data.cargoDescripcion} - ${data.tipoContrato} - ${data.cargoNombre}';
 
+      doc.addPage(
+        pw.Page(
+          // 🔥 1. CAMBIADO A FORMATO A4
+          pageFormat: PdfPageFormat.a4,
+          // 🔥 2. AJUSTE DE MÁRGENES: Reducimos el inferior a 30 para que baje más el pie
+          margin: const pw.EdgeInsets.only(left: 100, right: 100, top: 40, bottom: 10),
+          build: (pw.Context context) {
             return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Center(child: pw.Image(tedLogoImage, width: 150)),
-                pw.SizedBox(height: 10),
-                pw.Text(
-                  "Tribunal Electoral Departamental\nCOCHABAMBA",
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
-                ),
-                pw.SizedBox(height: 40),
-                pw.Text(
-                  "EL SUSCRITO RESPONSABLE DE POA Y RECURSOS HUMANOS DEL O.E.P. - TRIBUNAL ELECTORAL DPTAL DE COCHABAMBA, A PETICIÓN ESCRITA DE LA PERSONA INTERESADA.",
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    fontSize: 16,
-                    fontWeight: pw.FontWeight.bold,
-                    lineSpacing: 4,
-                  ),
-                ),
-                pw.SizedBox(height: 50),
-                pw.Container(
-                  alignment: pw.Alignment.centerLeft,
-                  child: pw.Text(
-                    "CERTIFICA:",
-                    style: pw.TextStyle(
-                      fontSize: 22,
-                      fontWeight: pw.FontWeight.bold,
+                // ==========================================
+                // HEADER CON LOGO
+                // ==========================================
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.center,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Container(width: 90, height: 90, child: pw.Image(logoImage)),
+                        pw.Text('Tribunal Electoral Departamental', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                        pw.Text('COCHABAMBA', style: const pw.TextStyle(fontSize: 10)),
+                        
+                      ],
                     ),
-                  ),
+                    
+                  ],
                 ),
                 pw.SizedBox(height: 30),
-                pw.RichText(
-                  textAlign: pw.TextAlign.justify,
-                  text: pw.TextSpan(
-                    style: const pw.TextStyle(
-                      fontSize: 15,
-                      color: PdfColors.black,
-                      lineSpacing: 10,
-                    ),
-                    children: [
-                      const pw.TextSpan(text: "Que, el(la) Sr.(a) "),
-                      pw.TextSpan(
-                        text: emp.nombreCompleto.toUpperCase(),
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
-                      const pw.TextSpan(text: " con CI. No. "),
-                      pw.TextSpan(
-                        text: emp.ci,
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
-                      const pw.TextSpan(
-                        text: ", desempeñó las funciones como ",
-                      ),
-                      pw.TextSpan(
-                        text: emp.cargo.toUpperCase(),
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
-                      const pw.TextSpan(
-                        text:
-                            ", en el Tribunal Electoral Departamental de Cochabamba, durante el proceso electoral ELECCIONES DE AUTORIDADES POLÍTICAS DEPARTAMENTALES, REGIONALES Y MUNICIPALES (ELECCIONES SUBNACIONALES 2026), del ",
-                      ),
 
-                      // 🔥 AQUÍ SE IMPRIMEN LAS FECHAS DEL OBJETO
-                      pw.TextSpan(
-                        text: data.fechaInicio,
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
-                      const pw.TextSpan(text: " al "),
-                      pw.TextSpan(
-                        text: data.fechaFin,
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
-
-                      const pw.TextSpan(
-                        text:
-                            ", demostrando durante su permanencia responsabilidad, honestidad y dedicación en las labores que le fueron encomendadas.",
-                      ),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 50),
-                pw.Text(
-                  "Es cuanto se certifica en honor a la verdad y para fines consiguientes de la persona interesada.",
-                  textAlign: pw.TextAlign.center,
-                  style: const pw.TextStyle(fontSize: 14),
-                ),
-                pw.SizedBox(height: 80),
-                pw.Container(
+                // ==========================================
+                // PÁRRAFO "EL SUSCRITO..."
+                // ==========================================
+                pw.Align(
                   alignment: pw.Alignment.centerRight,
-                  child: pw.Text(
-                    "Cochabamba, el $fechaHoy.",
-                    style: const pw.TextStyle(fontSize: 14),
+                  child: pw.Container(
+                    width: PdfPageFormat.a4.width * 0.45,
+                    child: pw.Text(
+                      'EL SUSCRITO RESPONSABLE DE POA Y RECURSOS HUMANOS DEL O.E.P. - TRIBUNAL ELECTORAL DPTAL. DE COCHABAMBA, A PETICIÓN ESCRITA DE LA PARTE INTERESADA.',
+                      textAlign: pw.TextAlign.justify,
+                      style: pw.TextStyle(fontSize: 14, height: 1.8, fontWeight: pw.FontWeight.bold),
+                    ),
                   ),
+                ),
+                pw.SizedBox(height: 60),
+
+                // ==========================================
+                // TÍTULO
+                // ==========================================
+                pw.Center(child: pw.Text('CERTIFICA:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20))),
+                pw.SizedBox(height: 60),
+
+                // ==========================================
+                // PÁRRAFO PRINCIPAL
+                // ==========================================
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 10),
+                  child: pw.RichText(
+                    textAlign: pw.TextAlign.justify,
+                    text: pw.TextSpan(
+                      style: const pw.TextStyle(fontSize: 12, lineSpacing: 5), 
+                      children: [
+                        const pw.TextSpan(text: 'Que, el(la) Sr.(a) '),
+                        pw.TextSpan(
+                          text: emp.nombreCompleto.toUpperCase(), 
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
+                        ),
+                        const pw.TextSpan(text: ' con CI. No. '),
+                        pw.TextSpan(
+                          text: emp.carnetIdentidad, 
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
+                        ),
+                        const pw.TextSpan(text: ' desempeñó las funciones como '),
+                        
+                        pw.TextSpan(
+                          text: funcionesCompuestas.toUpperCase(), 
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
+                        ),
+                        
+                        const pw.TextSpan(
+                          text: ', durante el Proceso " ELECCION DE AUTORIDADES POLITICAS DEPARTAMENTALES, REGIONALES Y MUNICIPALES (ELECCIONES SUBNACIONALES 2026)", comprendido entre el '
+                        ),
+                        pw.TextSpan(
+                          text: data.fechaInicio, 
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
+                        ),
+                        const pw.TextSpan(text: ' al '),
+                        pw.TextSpan(
+                          text: data.fechaFin, 
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
+                        ),
+                        const pw.TextSpan(
+                          text: ', cargo en el cual ha demostrado compromiso y responsabilidad en las labores encomendadas, así como seriedad y puntualidad.'
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // 🔥 3. ESPACIO REDUCIDO (Antes 60, ahora 30 para que suba el párrafo final)
+                pw.SizedBox(height: 30),
+
+                // ==========================================
+                // FRAS DE CIERRE Y FECHA
+                // ==========================================
+                pw.Align(
+                  alignment: pw.Alignment.centerRight,
+                  child: pw.Container(
+                    width: PdfPageFormat.a4.width * 0.7,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Text(
+                          'Es cuanto certifico en honor a la verdad y para fines consiguientes del interesado.', 
+                          textAlign: pw.TextAlign.right, 
+                          style: const pw.TextStyle(fontSize: 12, height: 2.0)
+                        ),
+                        pw.SizedBox(height: 40),
+                        pw.Text('Cochabamba, $fechaActualStr', style: const pw.TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // El Spacer se encarga de empujar el footer hacia abajo (hacia el margen bottom de 30 que pusimos)
+                pw.Spacer(),
+                
+                // ==========================================
+                // PIE DE PÁGINA (DIRECCIÓN)
+                // ==========================================
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('C.C. Arch.\nDCF', style: const pw.TextStyle(fontSize: 8, height: 1.3)),
+                    pw.SizedBox(height: 10),
+                    pw.Container(width: double.infinity, height: 1, color: PdfColors.grey300),
+                    pw.SizedBox(height: 5),
+                    pw.Center(
+                      child: pw.Text(
+                        'Cala Cala, avenida Simón López Nº O-325. Teléfonos: 4430551 - 4430552. Fax: 4430341\nSitio Web: cochabamba.oep.org.bo',
+                        textAlign: pw.TextAlign.center,
+                        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             );
@@ -145,6 +195,6 @@ class CertificatePdfService {
         ),
       );
     }
-    return pdf.save();
+    return doc.save();
   }
 }

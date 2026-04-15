@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/provider/employee_provider.dart';
 import '../../config/theme/app_colors.dart';
 
 class SidebarFilter extends StatefulWidget {
-  // 🔥 NUEVO: Interruptor para ocultar los estados en la pantalla de certificados
   final bool hideEstados; 
   const SidebarFilter({super.key, this.hideEstados = false});
 
@@ -15,6 +15,20 @@ class SidebarFilter extends StatefulWidget {
 
 class _SidebarFilterState extends State<SidebarFilter> {
   final MenuController _menuController = MenuController();
+  bool _esConsulta = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarRol();
+  }
+
+  Future<void> _cargarRol() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _esConsulta = prefs.getString('rol') == 'CONSULTA';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +62,64 @@ class _SidebarFilterState extends State<SidebarFilter> {
       textStyle: MaterialStateProperty.all(const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
     );
 
+    // 🔥 FUNCIÓN PARA CREAR EL MENÚ DE ADMIN (Ve todas las unidades)
+    List<Widget> buildAdminMenu() {
+      return [
+        MenuItemButton(
+          style: modernItemStyle,
+          onPressed: () => provider.setUnidadYCargo(null, null),
+          child: const Text('TODAS LAS UNIDADES', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+        ),
+        const PopupMenuDivider(),
+        ...provider.unidadesDisponibles.map((unidad) {
+          return SubmenuButton(
+            menuStyle: modernMenuStyle,
+            style: modernItemStyle,
+            menuChildren: [
+              MenuItemButton(
+                style: modernItemStyle,
+                onPressed: () => provider.setUnidadYCargo(unidad, null),
+                child: const Text('Todos los Cargos', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+              ),
+              ...(provider.cargosPorUnidad[unidad] ?? []).map((cargo) {
+                return MenuItemButton(
+                  style: modernItemStyle,
+                  onPressed: () => provider.setUnidadYCargo(unidad, cargo),
+                  child: Text(cargo),
+                );
+              }).toList(),
+            ],
+            child: Text(unidad), 
+          );
+        }).toList(),
+      ];
+    }
+
+    // 🔥 FUNCIÓN PARA CREAR EL MENÚ DE CONSULTA (Solo ve cargos de SU unidad)
+    List<Widget> buildConsultaMenu() {
+      final miUnidad = provider.selectedUnidadFilter;
+      if (miUnidad == null) return [const MenuItemButton(child: Text('Cargando...'))];
+
+      final misCargos = provider.cargosPorUnidad[miUnidad] ?? [];
+
+      return [
+        MenuItemButton(
+          style: modernItemStyle,
+          // Al presionar "Todos los cargos", mantenemos su unidad pero borramos el cargo
+          onPressed: () => provider.setUnidadYCargo(miUnidad, null),
+          child: const Text('Todos los Cargos', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+        ),
+        const PopupMenuDivider(),
+        ...misCargos.map((cargo) {
+          return MenuItemButton(
+            style: modernItemStyle,
+            onPressed: () => provider.setUnidadYCargo(miUnidad, cargo),
+            child: Text(cargo),
+          );
+        }).toList(),
+      ];
+    }
+
     return Container(
       width: 260,
       margin: const EdgeInsets.only(right: 20, top: 20),
@@ -73,11 +145,7 @@ class _SidebarFilterState extends State<SidebarFilter> {
                 SizedBox(width: 10),
                 Text(
                   "Filtros Rápidos",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
                 ),
               ],
             ),
@@ -87,17 +155,13 @@ class _SidebarFilterState extends State<SidebarFilter> {
 
             const Text(
               "UNIDAD Y CARGO",
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-                letterSpacing: 1,
-              ),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1),
             ),
             const SizedBox(height: 10),
 
             MouseRegion(
               onEnter: (_) {
+                // Ahora TODO el mundo puede abrir el menú
                 if (!_menuController.isOpen) {
                   _menuController.open();
                 }
@@ -105,41 +169,14 @@ class _SidebarFilterState extends State<SidebarFilter> {
               child: MenuAnchor(
                 controller: _menuController,
                 style: modernMenuStyle,
-                menuChildren: [
-                  MenuItemButton(
-                    style: modernItemStyle,
-                    onPressed: () => provider.setUnidadYCargo(null, null),
-                    child: const Text('TODAS LAS UNIDADES', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
-                  ),
-                  const PopupMenuDivider(),
-                  ...provider.unidadesDisponibles.map((unidad) {
-                    return SubmenuButton(
-                      menuStyle: modernMenuStyle,
-                      style: modernItemStyle,
-                      menuChildren: [
-                        MenuItemButton(
-                          style: modernItemStyle,
-                          onPressed: () => provider.setUnidadYCargo(unidad, null),
-                          child: const Text('Todos los Cargos', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
-                        ),
-                        ...(provider.cargosPorUnidad[unidad] ?? []).map((cargo) {
-                          return MenuItemButton(
-                            style: modernItemStyle,
-                            onPressed: () => provider.setUnidadYCargo(unidad, cargo),
-                            child: Text(cargo),
-                          );
-                        }).toList(),
-                      ],
-                      child: Text(unidad), 
-                    );
-                  }).toList(),
-                ],
+                // 🔥 Decidimos qué menú mostrar según el rol
+                menuChildren: _esConsulta ? buildConsultaMenu() : buildAdminMenu(),
                 builder: (context, controller, child) {
                   return Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: Colors.grey.shade50, // Fondo normal para todos
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.grey.shade300),
                     ),
@@ -155,7 +192,7 @@ class _SidebarFilterState extends State<SidebarFilter> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                        const Icon(Icons.arrow_drop_down, color: Colors.grey), // Flecha normal para todos
                       ],
                     ),
                   );
@@ -163,17 +200,11 @@ class _SidebarFilterState extends State<SidebarFilter> {
               ),
             ),
 
-            // 🔥 APLICAMOS EL INTERRUPTOR AQUÍ
             if (!widget.hideEstados) ...[
               const SizedBox(height: 25),
               const Text(
                 "ESTADO",
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey,
-                  letterSpacing: 1,
-                ),
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1),
               ),
               const SizedBox(height: 15),
 

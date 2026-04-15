@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 🔥 IMPORTANTE AGREGADO
 
 import '../../config/provider/employee_provider.dart';
 import '../../config/models/employee_model.dart';
@@ -29,18 +30,22 @@ class _CertificadosMasivoScreenState extends State<CertificadosMasivoScreen> {
     _cargarHistoricosDesdeFirebase();
   }
 
-  // 🔥 DESCARGAMOS EL PERSONAL HISTÓRICO DE FIREBASE AL INICIAR
-// 🔥 DESCARGAMOS EL PERSONAL HISTÓRICO DE FIREBASE AL INICIAR
+  // 🔥 DESCARGAMOS EL PERSONAL HISTÓRICO DE FIREBASE Y FILTRAMOS POR ROL
   Future<void> _cargarHistoricosDesdeFirebase() async {
     final provider = context.read<EmployeeProvider>();
     provider.clearCertificadoSelection();
 
     final personasRaw = await provider.obtenerPersonasHistoricasFirebase();
     
+    // 🔥 1. LEER ROL Y UNIDAD
+    final prefs = await SharedPreferences.getInstance();
+    String rol = prefs.getString('rol') ?? '';
+    String miUnidad = prefs.getString('nombreUnidad') ?? '';
+
     if (mounted) {
       setState(() {
-        // Mapeamos los datos de Firebase a nuestra clase Employee
-        _empleadosHistoricos = personasRaw.map((p) => Employee(
+        // Primero mapeamos todos los que vienen de Firebase
+        List<Employee> todos = personasRaw.map((p) => Employee(
           id: p['idBackend'] ?? 0,
           nombre: p['nombreCompleto'] ?? 'Sin Nombre',
           apellidoPaterno: '',
@@ -52,14 +57,22 @@ class _CertificadosMasivoScreenState extends State<CertificadosMasivoScreen> {
           estadoActual: 'CONTRATO TERMINADO',
           cargo: p['ultimoCargo'] ?? 'Sin Cargo',
           unidad: p['ultimaUnidad'] ?? 'Sin Unidad',
-          
-          // 🔥 AQUÍ AGREGAMOS LOS CAMPOS REQUERIDOS FALTANTES CON VALORES POR DEFECTO
-          photoUrl: '', // o 'imagen': '' dependiendo de cómo se llame exactamente en tu modelo
-          qrUrl: '', // o 'qr': ''
-         
-          tipo: 'HISTORICO', Circu: '', ImageId: 0,
-          // colorEstado: Colors.grey, <-- Descomenta esta línea si también te pide el color
+          photoUrl: '', 
+          qrUrl: '', 
+          Circu: '', 
+          ImageId: 0,
+          tipo: 'HISTORICO',
         )).toList();
+
+        // 🔥 2. APLICAR FILTRO DE SEGURIDAD (RBAC)
+        if (rol == 'CONSULTA' && miUnidad.isNotEmpty) {
+          _empleadosHistoricos = todos.where((emp) {
+            return emp.unidad.trim().toLowerCase() == miUnidad.trim().toLowerCase();
+          }).toList();
+        } else {
+          _empleadosHistoricos = todos; // Si es ADMIN, ve todo el historial
+        }
+
         _isLoading = false;
       });
     }
@@ -86,7 +99,6 @@ class _CertificadosMasivoScreenState extends State<CertificadosMasivoScreen> {
     final formatPdf = DateFormat('dd \'de\' MMMM \'de\' yyyy', 'es');
 
     for (var emp in provider.selectedForCertificados) {
-      // 🔥 OBTENEMOS LOS CONTRATOS CERRADOS DE FIREBASE
       final contratos = await provider.obtenerContratosDePersonaFirebase(emp.id.toString());
       
       for (var contrato in contratos) {
@@ -95,9 +107,12 @@ class _CertificadosMasivoScreenState extends State<CertificadosMasivoScreen> {
 
         datosAImprimir.add(
           CertificadoData(
-            employee: emp.copyWith(cargo: contrato['cargo']),
+            employee: emp, 
             fechaInicio: formatPdf.format(inicio),
             fechaFin: formatPdf.format(fin),
+            cargoNombre: contrato['cargo'] ?? emp.cargo,
+            cargoDescripcion: contrato['cargoDescripcion'] ?? 'Servicio de Terceros',
+            tipoContrato: contrato['tipoContrato'] ?? 'Administrativo I',
           ),
         );
       }

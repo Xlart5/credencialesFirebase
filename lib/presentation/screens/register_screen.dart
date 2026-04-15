@@ -819,7 +819,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           TextFormField(
             keyboardType: isNumber ? TextInputType.number : TextInputType.text,
             decoration: _inputDecoration(hint, icon),
-            validator: customValidator ?? (v) => v!.isEmpty ? 'Requerido' : null,
+            validator: customValidator ?? (v) => v!.isEmpty 
+            ? 'Requerido' 
+            : null,
             onSaved: (v) => onSaved(v!.trim()),
           ),
         ],
