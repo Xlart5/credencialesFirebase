@@ -7,7 +7,8 @@ import '../../config/theme/app_colors.dart';
 
 class SidebarFilter extends StatefulWidget {
   final bool hideEstados; 
-  const SidebarFilter({super.key, this.hideEstados = false});
+  final bool showImpresoFilter; // 🔥 NUEVO PARÁMETRO
+  const SidebarFilter({super.key, this.hideEstados = false, this.showImpresoFilter = false});
 
   @override
   State<SidebarFilter> createState() => _SidebarFilterState();
@@ -62,7 +63,6 @@ class _SidebarFilterState extends State<SidebarFilter> {
       textStyle: MaterialStateProperty.all(const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
     );
 
-    // 🔥 FUNCIÓN PARA CREAR EL MENÚ DE ADMIN (Ve todas las unidades)
     List<Widget> buildAdminMenu() {
       return [
         MenuItemButton(
@@ -95,7 +95,6 @@ class _SidebarFilterState extends State<SidebarFilter> {
       ];
     }
 
-    // 🔥 FUNCIÓN PARA CREAR EL MENÚ DE CONSULTA (Solo ve cargos de SU unidad)
     List<Widget> buildConsultaMenu() {
       final miUnidad = provider.selectedUnidadFilter;
       if (miUnidad == null) return [const MenuItemButton(child: Text('Cargando...'))];
@@ -105,7 +104,6 @@ class _SidebarFilterState extends State<SidebarFilter> {
       return [
         MenuItemButton(
           style: modernItemStyle,
-          // Al presionar "Todos los cargos", mantenemos su unidad pero borramos el cargo
           onPressed: () => provider.setUnidadYCargo(miUnidad, null),
           child: const Text('Todos los Cargos', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
         ),
@@ -161,7 +159,6 @@ class _SidebarFilterState extends State<SidebarFilter> {
 
             MouseRegion(
               onEnter: (_) {
-                // Ahora TODO el mundo puede abrir el menú
                 if (!_menuController.isOpen) {
                   _menuController.open();
                 }
@@ -169,14 +166,13 @@ class _SidebarFilterState extends State<SidebarFilter> {
               child: MenuAnchor(
                 controller: _menuController,
                 style: modernMenuStyle,
-                // 🔥 Decidimos qué menú mostrar según el rol
                 menuChildren: _esConsulta ? buildConsultaMenu() : buildAdminMenu(),
                 builder: (context, controller, child) {
                   return Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50, // Fondo normal para todos
+                      color: Colors.grey.shade50,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.grey.shade300),
                     ),
@@ -192,13 +188,40 @@ class _SidebarFilterState extends State<SidebarFilter> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Icon(Icons.arrow_drop_down, color: Colors.grey), // Flecha normal para todos
+                        const Icon(Icons.arrow_drop_down, color: Colors.grey),
                       ],
                     ),
                   );
                 },
               ),
             ),
+
+            // 🔥 NUEVO: SECCIÓN DEL FILTRO IMPRESO (SÓLO SI ESTÁ ACTIVADO)
+            if (widget.showImpresoFilter) ...[
+              const SizedBox(height: 25),
+              const Text(
+                "¿ESTÁ IMPRESO?",
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1),
+              ),
+              const SizedBox(height: 15),
+              Wrap(
+                spacing: 10,
+                children: [
+                  ChoiceChip(
+                    label: const Text("Sí", style: TextStyle(fontWeight: FontWeight.bold)),
+                    selected: provider.filtroImpreso == true,
+                    onSelected: (selected) => provider.setFiltroImpreso(selected ? true : null),
+                    selectedColor: Colors.green.shade200,
+                  ),
+                  ChoiceChip(
+                    label: const Text("No", style: TextStyle(fontWeight: FontWeight.bold)),
+                    selected: provider.filtroImpreso == false,
+                    onSelected: (selected) => provider.setFiltroImpreso(selected ? false : null),
+                    selectedColor: Colors.orange.shade200,
+                  ),
+                ],
+              ),
+            ],
 
             if (!widget.hideEstados) ...[
               const SizedBox(height: 25),
@@ -232,6 +255,7 @@ class _SidebarFilterState extends State<SidebarFilter> {
             if (provider.selectedUnidadFilter != null ||
                 provider.selectedCargoFilter != null ||
                 provider.selectedEstadoFilter != null ||
+                provider.filtroImpreso != null ||
                 provider.searchQuery.isNotEmpty)
               SizedBox(
                 width: double.infinity,

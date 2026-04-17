@@ -16,8 +16,8 @@ class Employee {
   final String photoUrl;
   final String qrUrl;
   final String Circu;
-  // 🔥 NUEVO CAMPO: Para distinguir Planta de Eventual
   final String tipo;
+  final bool impreso; // 🔥 CAMPO AÑADIDO
 
   Employee({
     required this.id,
@@ -35,7 +35,8 @@ class Employee {
     required this.qrUrl,
     required this.Circu,
     required this.ImageId,
-    this.tipo = 'EVENTUAL',  // Valor por defecto
+    this.tipo = 'EVENTUAL',  
+    this.impreso = false, // 🔥
   });
 
   String get nombreCompleto =>
@@ -43,7 +44,6 @@ class Employee {
   String get ci => carnetIdentidad;
   int get estado => estadoActual.toUpperCase() == "PERSONAL REGISTRADO" ? 0 : 1;
 
-  // LÓGICA DE COLORES
   Color get colorEstado {
     final estadoUpper = estadoActual.toUpperCase();
     if (estadoUpper == "PERSONAL REGISTRADO") {
@@ -76,11 +76,11 @@ class Employee {
       qrUrl: json['qr'] ?? '',
       Circu: json['nroCircunscripcion'] ?? 'Sin Circunscripción',
       ImageId: json['imagenId'] ?? 0,
-      tipo: json['tipo'] ?? 'EVENTUAL', // Lo leemos del backend
+      tipo: json['tipo'] ?? 'EVENTUAL', 
+      impreso: json['impreso'] ?? false, // 🔥
     );
   }
 
-  // 🔥 FUNCIÓN PARA LA CACHÉ: Permite guardar la lista fusionada en la memoria
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -98,11 +98,11 @@ class Employee {
       'qr': qrUrl,
       'nroCircunscripcion': Circu,
       'imagenId': ImageId,
-      'tipo': tipo, // Lo guardamos en caché
+      'tipo': tipo, 
+      'impreso': impreso, // 🔥
     };
   }
 
-  // 🔥 COPYWITH INTACTO
   Employee copyWith({
     int? id,
     String? nombre,
@@ -118,7 +118,8 @@ class Employee {
     String? photoUrl,
     String? qrUrl,
     String? circuns,
-    String? tipo, // Nuevo parámetro opcional
+    String? tipo, 
+    bool? impreso, // 🔥
   }) {
     return Employee(
       id: id ?? this.id,
@@ -136,15 +137,15 @@ class Employee {
       qrUrl: qrUrl ?? this.qrUrl,
       Circu: circuns ?? this.Circu,
       ImageId: this.ImageId,
-      tipo: tipo ?? this.tipo, // Asignamos el nuevo valor o mantenemos el actual
+      tipo: tipo ?? this.tipo, 
+      impreso: impreso ?? this.impreso, // 🔥
     );
   }
 
-  // 🔥 ESTO ES VITAL PARA QUE LOS CHECKBOXES Y LA SELECCIÓN FUNCIONEN PERFECTO
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is Employee && other.id == id; // Compara siempre por ID
+    return other is Employee && other.id == id; 
   }
 
   @override

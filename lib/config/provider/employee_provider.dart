@@ -21,6 +21,10 @@ class EmployeeProvider extends ChangeNotifier {
   String? _selectedCargoFilter;
   String? get selectedCargoFilter => _selectedCargoFilter;
 
+  // 🔥 NUEVO: Estado del filtro impreso
+  bool? _filtroImpreso;
+  bool? get filtroImpreso => _filtroImpreso;
+
   final Set<int> _contratosCerradosVisualmente = {};
   final Set<Employee> _selectedForPrint = {};
   Set<Employee> get selectedForPrint => _selectedForPrint;
@@ -67,19 +71,14 @@ class EmployeeProvider extends ChangeNotifier {
   int get pendingRequests => _allEmployees.where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO").length;
   List<Employee> get pendingPrintingEmployees => _allEmployees.where((e) => e.estadoActual.toUpperCase() == "PERSONAL REGISTRADO").toList();
 
-  // ==========================================================
-  // 🔥 NUEVA LÓGICA DE FILTRADO SÚPER SIMPLE (Texto vs Texto)
-  // ==========================================================
   Future<List<Employee>> _filtrarPorRol(String jsonString) async {
     List<Employee> todos = await compute(parseEmployeesInBackground, jsonString);
 
     final prefs = await SharedPreferences.getInstance();
     String rol = prefs.getString('rol') ?? '';
     
-    // Si no es CONSULTA (es decir, es ADMIN), pasan todos.
     if (rol != 'CONSULTA') return todos;
 
-    // Si es CONSULTA, leemos la "descripcion" del login (que ahora llamamos nombreUnidad)
     String miUnidad = prefs.getString('nombreUnidad') ?? '';
     
     if (miUnidad.isEmpty) {
@@ -89,7 +88,6 @@ class EmployeeProvider extends ChangeNotifier {
 
     print("🛑 Filtrando usuarios que pertenezcan a la unidad: '$miUnidad'");
     
-    // Filtramos comparando el string exacto, ignorando mayúsculas y espacios extra
     return todos.where((emp) => 
       emp.unidad.trim().toLowerCase() == miUnidad.trim().toLowerCase()
     ).toList();
@@ -191,7 +189,6 @@ class EmployeeProvider extends ChangeNotifier {
     
     _cargosPorUnidad.forEach((key, value) => value.sort());
     
-    // Auto-seleccionar unidad si es CONSULTA
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getString('rol') == 'CONSULTA' && _unidadesDisponibles.isNotEmpty) {
       _selectedUnidadFilter = _unidadesDisponibles.first;
@@ -243,11 +240,18 @@ class EmployeeProvider extends ChangeNotifier {
     _applyFilters();
   }
 
+  // 🔥 NUEVO: SETTER PARA EL FILTRO IMPRESO
+  void setFiltroImpreso(bool? valor) {
+    _filtroImpreso = valor;
+    notifyListeners();
+  }
+
   void clearFilters() async {
     final prefs = await SharedPreferences.getInstance();
     _searchQuery = '';
     _selectedCargoFilter = null;
     _selectedEstadoFilter = null;
+    _filtroImpreso = null; // 🔥 LIMPIAR ESTE TAMBIÉN
 
     if (prefs.getString('rol') != 'CONSULTA') {
       _selectedUnidadFilter = null;
@@ -291,7 +295,7 @@ class EmployeeProvider extends ChangeNotifier {
       final response = await http.put(url, headers: Environment.authHeaders, body: jsonEncode({"personalIds": personalIds, "observacion": "Habilitación masiva desde panel de administración"}));
       if (response.statusCode == 200 || response.statusCode == 201) {
         for (var emp in empleados) {
-          updateEmployeeLocal(emp.copyWith(estadoActual: "PERSONA ACTIVA"));
+          updateEmployeeLocal(emp.copyWith(estadoActual: "PERSONAL ACTIVO"));
         }
         return true;
       } else {
@@ -322,6 +326,27 @@ class EmployeeProvider extends ChangeNotifier {
       print('❌ Error al procesar devolución masiva: $e');
       return false;
     }
+  }
+
+  void setEmpleadosHistoricosTemporales(List<Employee> historicos) {
+    _unidadesDisponibles.clear();
+    _cargosPorUnidad.clear();
+
+    for (var emp in historicos) {
+      if (emp.unidad.isNotEmpty) {
+        _unidadesDisponibles.add(emp.unidad);
+        if (emp.cargo.isNotEmpty) {
+          if (!_cargosPorUnidad.containsKey(emp.unidad)) {
+            _cargosPorUnidad[emp.unidad] = [];
+          }
+          if (!_cargosPorUnidad[emp.unidad]!.contains(emp.cargo)) {
+            _cargosPorUnidad[emp.unidad]!.add(emp.cargo);
+          }
+        }
+      }
+    }
+    
+    _cargosPorUnidad.forEach((key, value) => value.sort());
   }
 
   Future<bool> registrarFechasProceso(int personalId, DateTime fechaInicio, DateTime fechaFin) async {
@@ -555,13 +580,56 @@ class EmployeeProvider extends ChangeNotifier {
     }
   }
 
+  // 🔥 ACTUALIZADO: Leemos el campo "impreso" desde la subcolección
+// =========================================================================
+  // 🔥 MÓDULO FIREBASE: LEER PERSONAS (CORREGIDO PARA CARGA INSTANTÁNEA)
+  // =========================================================================
   Future<List<Map<String, dynamic>>> obtenerPersonasHistoricasFirebase() async {
     try {
+      // 1 SOLA PETICIÓN PARA TRAER A TODOS
       final snapshot = await FirebaseFirestore.instance.collection('personal_historico').get();
-      return snapshot.docs.map((doc) => doc.data()).toList();
+      
+      return snapshot.docs.map((doc) {
+        var data = doc.data();
+        
+        // Leemos el booleano directamente del padre. Si no existe (datos viejos), es false.
+        // Nos ahorramos miles de peticiones a las subcolecciones.
+        data['impreso'] = data['impreso'] ?? false; 
+        
+        return data;
+      }).toList();
     } catch (e) {
       print("Error leyendo personas de Firebase: $e");
       return [];
+    }
+  }
+
+  // =========================================================================
+  // 🔥 MÓDULO FIREBASE: CAMBIAR A IMPRESO = TRUE (EN PADRE E HIJO)
+  // =========================================================================
+  Future<bool> actualizarEstadoImpresoFirebase(List<int> ids, bool valor) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final batch = firestore.batch();
+
+      for (var id in ids) {
+        final docRef = firestore.collection('personal_historico').doc(id.toString());
+        
+        // 1. Actualizamos el padre usando merge para no borrar nada (Carga rápida futura)
+        batch.set(docRef, {'impreso': valor}, SetOptions(merge: true));
+
+        // 2. Actualizamos la subcolección para mantener la integridad de tu base de datos
+        final contratosSnap = await docRef.collection('contratos_cerrados').get();
+        for (var cDoc in contratosSnap.docs) {
+          batch.update(cDoc.reference, {'impreso': valor});
+        }
+      }
+
+      await batch.commit();
+      return true;
+    } catch (e) {
+      print("❌ Error al actualizar campo impreso en Firebase: $e");
+      return false;
     }
   }
 

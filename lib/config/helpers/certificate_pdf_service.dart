@@ -40,14 +40,14 @@ class CertificatePdfService {
       final emp = data.employee;
 
       final String funcionesCompuestas = 
-          '${data.cargoDescripcion} - ${data.tipoContrato} - ${data.cargoNombre}';
+          '${data.cargoDescripcion} - ${data.cargoNombre}';
 
       doc.addPage(
         pw.Page(
           // 🔥 1. CAMBIADO A FORMATO A4
           pageFormat: PdfPageFormat.a4,
           // 🔥 2. AJUSTE DE MÁRGENES: Reducimos el inferior a 30 para que baje más el pie
-          margin: const pw.EdgeInsets.only(left: 100, right: 100, top: 40, bottom: 10),
+          margin: const pw.EdgeInsets.only(left: 80, right: 80, top: 10, bottom: 30),
           build: (pw.Context context) {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -71,7 +71,7 @@ class CertificatePdfService {
                     
                   ],
                 ),
-                pw.SizedBox(height: 30),
+                pw.SizedBox(height: 15),
 
                 // ==========================================
                 // PÁRRAFO "EL SUSCRITO..."
@@ -87,13 +87,13 @@ class CertificatePdfService {
                     ),
                   ),
                 ),
-                pw.SizedBox(height: 60),
+                pw.SizedBox(height: 20),
 
                 // ==========================================
                 // TÍTULO
                 // ==========================================
-                pw.Center(child: pw.Text('CERTIFICA:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20))),
-                pw.SizedBox(height: 60),
+                pw.Padding(padding: pw.EdgeInsets.symmetric(horizontal: 10),child: pw.Text('CERTIFICA:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20))),
+                pw.SizedBox(height: 15),
 
                 // ==========================================
                 // PÁRRAFO PRINCIPAL
@@ -110,11 +110,12 @@ class CertificatePdfService {
                           text: emp.nombreCompleto.toUpperCase(), 
                           style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
                         ),
-                        const pw.TextSpan(text: ' con CI. No. '),
+                        const pw.TextSpan(text: ' con Cedula de Identidad. No. '),
                         pw.TextSpan(
-                          text: emp.carnetIdentidad, 
+                          text: emp.carnetIdentidad , 
                           style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
                         ),
+                        
                         const pw.TextSpan(text: ' desempeñó las funciones como '),
                         
                         pw.TextSpan(
@@ -123,16 +124,16 @@ class CertificatePdfService {
                         ),
                         
                         const pw.TextSpan(
-                          text: ', durante el Proceso " ELECCION DE AUTORIDADES POLITICAS DEPARTAMENTALES, REGIONALES Y MUNICIPALES (ELECCIONES SUBNACIONALES 2026)", comprendido entre el '
+                          text: ', durante el Proceso de Elecciones de autoridades politicas departamentales, regionales y municipales (Elecciones Subnacionales 2026), comprendido entre el '
                         ),
                         pw.TextSpan(
                           text: data.fechaInicio, 
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
+                          
                         ),
                         const pw.TextSpan(text: ' al '),
                         pw.TextSpan(
                           text: data.fechaFin, 
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
+                          
                         ),
                         const pw.TextSpan(
                           text: ', cargo en el cual ha demostrado compromiso y responsabilidad en las labores encomendadas, así como seriedad y puntualidad.'
@@ -157,10 +158,10 @@ class CertificatePdfService {
                       children: [
                         pw.Text(
                           'Es cuanto certifico en honor a la verdad y para fines consiguientes del interesado.', 
-                          textAlign: pw.TextAlign.right, 
+                           
                           style: const pw.TextStyle(fontSize: 12, height: 2.0)
                         ),
-                        pw.SizedBox(height: 40),
+                        pw.SizedBox(height: 30),
                         pw.Text('Cochabamba, $fechaActualStr', style: const pw.TextStyle(fontSize: 12)),
                       ],
                     ),
