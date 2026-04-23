@@ -15,7 +15,6 @@ import 'config/provider/unidades_provider.dart';
 import 'config/router/app_router.dart';
 import 'config/theme/app_colors.dart';
 import 'config/firebase_config.dart';
-import 'config/constans/constants/environment.dart'; // 🔥 IMPORTANTE
 
 void main() async {
   // 1. LÍNEA VITAL: Obligatoria en Flutter antes de arrancar configuraciones nativas

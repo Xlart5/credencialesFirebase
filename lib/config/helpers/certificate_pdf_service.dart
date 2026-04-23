@@ -99,7 +99,7 @@ class CertificatePdfService {
                 // PÁRRAFO PRINCIPAL
                 // ==========================================
                 pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 10),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 0),
                   child: pw.RichText(
                     textAlign: pw.TextAlign.justify,
                     text: pw.TextSpan(
@@ -110,7 +110,7 @@ class CertificatePdfService {
                           text: emp.nombreCompleto.toUpperCase(), 
                           style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
                         ),
-                        const pw.TextSpan(text: ' con Cedula de Identidad. No. '),
+                        const pw.TextSpan(text: ' con Cédula de Identidad. No. '),
                         pw.TextSpan(
                           text: emp.carnetIdentidad , 
                           style: pw.TextStyle(fontWeight: pw.FontWeight.bold)
@@ -124,7 +124,7 @@ class CertificatePdfService {
                         ),
                         
                         const pw.TextSpan(
-                          text: ', durante el Proceso de Elecciones de autoridades politicas departamentales, regionales y municipales (Elecciones Subnacionales 2026), comprendido entre el '
+                          text: ', durante el Proceso de Elecciones de Autoridades Políticas Departamentales, Regionales y Municipales (Elecciones Subnacionales 2026), comprendido entre el '
                         ),
                         pw.TextSpan(
                           text: data.fechaInicio, 
@@ -152,14 +152,15 @@ class CertificatePdfService {
                 pw.Align(
                   alignment: pw.Alignment.centerRight,
                   child: pw.Container(
-                    width: PdfPageFormat.a4.width * 0.7,
+                    width: PdfPageFormat.a4.width ,
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
                         pw.Text(
-                          'Es cuanto certifico en honor a la verdad y para fines consiguientes del interesado.', 
+                          'Es cuanto certifico en honor a la verdad y para fines consiguientes del Interesado.', 
                            
-                          style: const pw.TextStyle(fontSize: 12, height: 2.0)
+                          style: const pw.TextStyle(fontSize: 12, height: 2.0,lineSpacing: 5),
+                          textAlign: pw.TextAlign.justify
                         ),
                         pw.SizedBox(height: 30),
                         pw.Text('Cochabamba, $fechaActualStr', style: const pw.TextStyle(fontSize: 12)),
