@@ -1,8 +1,10 @@
 import 'package:carnetizacion/presentation/screens/certificados_masivo_screen.dart';
 import 'package:carnetizacion/presentation/screens/certificados_screen.dart';
+import 'package:carnetizacion/presentation/screens/firebase_error_control_screen.dart';
 import 'package:carnetizacion/presentation/screens/generar_qrs_screen.dart';
 import 'package:carnetizacion/presentation/screens/historial_screen.dart';
 import 'package:carnetizacion/presentation/screens/monitor_externo_screen.dart';
+import 'package:carnetizacion/presentation/screens/renovar_contratos_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -103,10 +105,12 @@ final appRouter = GoRouter(
       builder: (context, state) => const MonitorScreen(tipoPuerta: 'eventuales'),
     ),
     GoRoute(path: '/acceso/Historial', builder: (context, state) => const HistorialScreen()),
+    GoRoute(path: '/Panico', builder: (context, state) => const FirebaseDateEditorScreen()),
     GoRoute(path: '/generar-Externos', builder: (context, state) => const GenerarQrsScreen()),
     GoRoute(path: '/certificados', builder: (context, state) => const CertificadosScreen()),
     GoRoute(path: '/certificados-masivo', builder: (context, state) => const CertificadosMasivoScreen()),
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+    GoRoute(path: '/renovar-contratos', builder: (context, state) => const RenovarContratosScreen()),
     GoRoute(
       path: '/reportes',
       name: 'reportes',

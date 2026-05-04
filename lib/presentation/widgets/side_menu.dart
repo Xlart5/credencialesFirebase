@@ -208,6 +208,15 @@ class _SideMenuState extends State<SideMenu> {
                       context.push('/reportes'); 
                     },
                   ),
+                  _DrawerItem(
+                    icon: Icons.text_snippet_rounded,
+                    text: "Panico",
+                    isActive: location == '/Panico',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/Panico'); 
+                    },
+                  ),
                 ]
               ],
             ),

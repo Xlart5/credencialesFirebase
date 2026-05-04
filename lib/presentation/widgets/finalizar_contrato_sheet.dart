@@ -27,7 +27,7 @@ class _FinalizarContratoSheetState extends State<FinalizarContratoSheet> {
   DateTime? _fechaFin;
   bool _isProcessing = false;
 
-  // 🔥 NUEVOS ESTADOS PARA LOS CONTROLES DE FIREBASE
+  // 🔥 ESTADOS PARA LOS CONTROLES DE FIREBASE Y BACKEND
   bool _esConsultorEnLinea = false;
   String _tipoAdministrativo = "Administrativo I";
 
@@ -62,39 +62,46 @@ class _FinalizarContratoSheetState extends State<FinalizarContratoSheet> {
     setState(() => _isProcessing = true);
     final provider = context.read<EmployeeProvider>();
 
-    // 🔥 DEFINIMOS LA DESCRIPCIÓN SEGÚN EL SWITCH
     String descripcionFinal = _esConsultorEnLinea 
         ? "Servicios de Consultoria Individual en Linea" 
         : "Servicio de Terceros";
 
-    // 1. GUARDAMOS EN FIREBASE CON LOS NUEVOS PARÁMETROS
-    bool success = await provider.finalizarContratoEnFirebase(
+    // 1. 🔥 GUARDAMOS EN FIREBASE CON LOS NUEVOS PARÁMETROS
+    bool firebaseOk = await provider.finalizarContratoEnFirebase(
       emp: widget.employee,
       fechaInicio: _fechaIngreso!,
       fechaFin: _fechaFin!,
-      cargoDescripcion: descripcionFinal, // Se lo mandamos a Firebase
-      tipoContrato: _tipoAdministrativo,  // Se lo mandamos a Firebase
+      cargoDescripcion: descripcionFinal, 
+      tipoContrato: _tipoAdministrativo,  
     );
 
-    // 2. ACTUALIZAMOS EL ESTADO LOCAL
-    if (success) {
-      provider.updateEmployeeLocal(widget.employee.copyWith(estadoActual: "CONTRATO TERMINADO"));
-    }
+    // 2. 🔥 ACTUALIZAMOS EL BACKEND (SPRING BOOT)
+    // Usamos el endpoint registrarFechasProceso para cerrar su contrato allá también
+    bool backendOk = await provider.registrarFechasProceso(
+      widget.employee.id, 
+      _fechaIngreso!, 
+      _fechaFin!
+    );
 
     if (mounted) {
       setState(() => _isProcessing = false);
-      if (success) {
+      
+      // Si TODO salió bien (Firebase + Spring Boot)
+      if (firebaseOk && backendOk) {
+        // ACTUALIZAMOS EL ESTADO LOCAL para que desaparezca de la lista
+        provider.updateEmployeeLocal(widget.employee.copyWith(estadoActual: "CONTRATO TERMINADO"));
+        
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Contrato finalizado y archivado en Firebase"),
+            content: Text("Contrato finalizado en Firebase y el Backend principal"),
             backgroundColor: Colors.green,
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Error al archivar contrato."),
+            content: Text("Ocurrió un error. Revisa tu conexión al servidor o Firebase."),
             backgroundColor: Colors.red,
           ),
         );
@@ -157,7 +164,7 @@ class _FinalizarContratoSheetState extends State<FinalizarContratoSheet> {
                   children: [
                     const Center(
                       child: Text(
-                        "Defina el periodo trabajado para cerrar el contrato actual. Estos datos se guardarán en el histórico de Firebase.",
+                        "Defina el periodo trabajado para cerrar el contrato actual. Estos datos se guardarán en el histórico de Firebase y el Backend.",
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey),
                       ),

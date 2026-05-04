@@ -1,30 +1,96 @@
-import 'package:carnetizacion/presentation/widgets/finalizar_contrato_sheet.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/provider/employee_provider.dart';
+import '../../config/models/employee_model.dart';
 import '../../config/theme/app_colors.dart';
-import '../widgets/side_menu.dart';
 import '../widgets/sidebar_filter.dart';
 
-// 🔥 IMPORTAMOS EL WIDGET PARA EL DIÁLOGO MASIVO
-import '../widgets/cierre_masivo_dialog.dart';
+// 🔥 IMPORTAMOS EL WIDGET DEL MODAL
+import '../widgets/nuevo_contrato_dialog.dart';
 
-class CertificadosScreen extends StatefulWidget {
-  const CertificadosScreen({super.key});
+class RenovarContratosScreen extends StatefulWidget {
+  const RenovarContratosScreen({super.key});
 
   @override
-  State<CertificadosScreen> createState() => _CertificadosScreenState();
+  State<RenovarContratosScreen> createState() => _RenovarContratosScreenState();
 }
 
-class _CertificadosScreenState extends State<CertificadosScreen> {
+class _RenovarContratosScreenState extends State<RenovarContratosScreen> {
+  List<Employee> _candidatosParaRenovar = [];
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<EmployeeProvider>().fetchPersonalActivo();
-      context.read<EmployeeProvider>().clearFilters(); 
-    });
+    _prepararCruceDeDatos();
+  }
+
+  // =========================================================
+  // 🔥 LA LÓGICA DE CRUCE (FIREBASE vs ENDPOINT)
+  // =========================================================
+  Future<void> _prepararCruceDeDatos() async {
+    setState(() => _isLoading = true);
+    
+    final provider = context.read<EmployeeProvider>();
+    
+    // 1. Nos aseguramos de tener la lista más fresca del endpoint
+    await provider.fetchPersonalActivo();
+    provider.clearFilters();
+
+    // 2. Descargamos todos los históricos de Firebase
+    final personasFirebase = await provider.obtenerPersonasHistoricasFirebase();
+
+    // 3. Extraemos solo los IDs de la gente que está activa actualmente en el endpoint
+    final idsActivosEndpoint = provider.allEmployees.map((e) => e.id).toSet();
+
+    // 4. Obtenemos el Rol para el filtro RBAC
+    final prefs = await SharedPreferences.getInstance();
+    String rol = prefs.getString('rol') ?? '';
+    String miUnidad = prefs.getString('nombreUnidad') ?? '';
+
+    List<Employee> listaCruzada = [];
+
+    for (var p in personasFirebase) {
+      int idFbase = p['idBackend'] ?? 0;
+      String unidadHistorica = p['ultimaUnidad'] ?? 'Sin Unidad';
+
+      // Validación de Seguridad (RBAC): Si es consulta, solo ve su unidad
+      if (rol == 'CONSULTA' && unidadHistorica.trim().toLowerCase() != miUnidad.trim().toLowerCase()) {
+        continue;
+      }
+
+      // 🔥 EL CRUCE MAGISTRAL: Si está en Firebase PERO NO está en el endpoint, es candidato a renovar
+      if (!idsActivosEndpoint.contains(idFbase)) {
+        listaCruzada.add(Employee(
+          id: idFbase,
+          nombre: p['nombreCompleto'] ?? 'Sin Nombre',
+          apellidoPaterno: '',
+          apellidoMaterno: '',
+          carnetIdentidad: p['ci'] ?? '',
+          correo: '',
+          celular: '',
+          accesoComputo: false,
+          estadoActual: 'CONTRATO TERMINADO',
+          cargo: p['ultimoCargo'] ?? 'Sin Cargo',
+          unidad: unidadHistorica,
+          photoUrl: '', 
+          qrUrl: '', 
+          Circu: '', 
+          ImageId: 0,
+          tipo: 'HISTORICO',
+        ));
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _candidatosParaRenovar = listaCruzada;
+        _isLoading = false;
+      });
+      // Le pasamos esta lista temporal al provider para que el SidebarFilter construya los menús
+      provider.setEmpleadosHistoricosTemporales(_candidatosParaRenovar);
+    }
   }
 
   @override
@@ -32,10 +98,9 @@ class _CertificadosScreenState extends State<CertificadosScreen> {
     final provider = context.watch<EmployeeProvider>();
 
     // =========================================================
-    // 🔥 LÓGICA DE FILTRADO ESTRICTO PARA CERTIFICADOS
+    // 🔥 APLICAR FILTROS VISUALES (Barra lateral y Buscador)
     // =========================================================
-    final listaFiltrada = provider.allEmployees.where((emp) {
-      if (emp.estadoActual.toUpperCase() != 'CREDENCIAL DEVUELTO') return false;
+    final listaFiltrada = _candidatosParaRenovar.where((emp) {
       if (provider.selectedUnidadFilter != null && emp.unidad != provider.selectedUnidadFilter) return false;
       if (provider.selectedCargoFilter != null && emp.cargo != provider.selectedCargoFilter) return false;
 
@@ -50,71 +115,16 @@ class _CertificadosScreenState extends State<CertificadosScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          "Cierre de Contratos",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppColors.primaryDark,
+        title: const Text("Renovación de Contratos", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.blueGrey.shade800,
         actions: [
-          // 🔥 NUEVO BOTÓN: RENOVAR CONTRATOS (Nos lleva a la pantalla de renovación)
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: TextButton.icon(
-              onPressed: () => context.push('/renovar-contratos'),
-              icon: const Icon(Icons.autorenew, color: Colors.blueAccent),
-              label: const Text(
-                "RENOVAR CONTRATOS",
-                style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
-              ),
-              style: TextButton.styleFrom(backgroundColor: Colors.white10),
-            ),
-          ),
-
-          // BOTÓN: CIERRE MASIVO
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: TextButton.icon(
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => const CierreMasivoDialog(),
-                );
-              },
-              icon: const Icon(Icons.event_busy, color: Colors.redAccent),
-              label: const Text(
-                "CIERRE MASIVO (POR CARGO)",
-                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
-              ),
-              style: TextButton.styleFrom(backgroundColor: Colors.white10),
-            ),
-          ),
-          
-          // BOTÓN ORIGINAL: IMPRESIÓN MASIVA
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: TextButton.icon(
-              onPressed: () => context.push('/certificados-masivo'),
-              icon: const Icon(Icons.collections_bookmark, color: Colors.white),
-              label: const Text(
-                "IMPRESIÓN MASIVA",
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: "Refrescar datos",
+            onPressed: _prepararCruceDeDatos,
+          )
         ],
       ),
-      drawer: const SideMenu(),
-
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/certificados-masivo'),
-        backgroundColor: Colors.green.shade700,
-        icon: const Icon(Icons.print, color: Colors.white),
-        label: const Text(
-          "IR A IMPRESIÓN MASIVA",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      ),
-
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -128,10 +138,10 @@ class _CertificadosScreenState extends State<CertificadosScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.assignment_turned_in, color: Colors.orange, size: 28),
+                      const Icon(Icons.autorenew, color: Colors.blue, size: 28),
                       const SizedBox(width: 10),
                       const Text(
-                        "Personal con Credencial Devuelta",
+                        "Personal Libre para Nuevo Contrato",
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
                       ),
                       const Spacer(),
@@ -142,10 +152,7 @@ class _CertificadosScreenState extends State<CertificadosScreen> {
                           decoration: InputDecoration(
                             hintText: "Buscar por CI o Nombre...",
                             prefixIcon: const Icon(Icons.search),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none,
-                            ),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                             fillColor: Colors.white,
                             filled: true,
                             contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 10),
@@ -158,17 +165,17 @@ class _CertificadosScreenState extends State<CertificadosScreen> {
                   const SizedBox(height: 20),
 
                   Expanded(
-                    child: provider.isLoading
+                    child: _isLoading
                         ? const Center(child: CircularProgressIndicator())
                         : listaFiltrada.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey.shade300),
+                                Icon(Icons.folder_off_outlined, size: 80, color: Colors.grey.shade300),
                                 const SizedBox(height: 15),
                                 const Text(
-                                  "No hay personal pendiente de cierre en este filtro.",
+                                  "No hay personal disponible para renovación en este filtro.",
                                   style: TextStyle(color: Colors.grey, fontSize: 16),
                                 ),
                               ],
@@ -185,10 +192,10 @@ class _CertificadosScreenState extends State<CertificadosScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 child: ListTile(
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                  leading: const CircleAvatar(
+                                  leading: CircleAvatar(
                                     radius: 25,
-                                    backgroundColor: Colors.orange,
-                                    child: Icon(Icons.person, color: Colors.white, size: 28),
+                                    backgroundColor: Colors.grey.shade400,
+                                    child: const Icon(Icons.person_off, color: Colors.white, size: 28),
                                   ),
                                   title: Text(
                                     emp.nombreCompleto,
@@ -197,23 +204,29 @@ class _CertificadosScreenState extends State<CertificadosScreen> {
                                   subtitle: Padding(
                                     padding: const EdgeInsets.only(top: 8.0),
                                     child: Text(
-                                      "CI: ${emp.ci}  •  Unidad: ${emp.unidad}\nCargo: ${emp.cargo}",
+                                      "CI: ${emp.ci}  •  Última Unidad: ${emp.unidad}\nÚltimo Cargo: ${emp.cargo}",
                                       style: TextStyle(height: 1.4, color: Colors.grey.shade700),
                                     ),
                                   ),
                                   trailing: ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red.shade700,
+                                      backgroundColor: Colors.blue.shade600,
                                       foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
                                     ),
-                                    onPressed: () => showFinalizarContratoSheet(context, emp),
-                                    icon: const Icon(Icons.block, size: 18),
-                                    label: const Text(
-                                      "Finalizar y Cerrar",
-                                      style: TextStyle(fontWeight: FontWeight.bold),
-                                    ),
+                                    onPressed: () async {
+                                      // 1. Abrimos el modal para elegir el nuevo cargo
+                                      await showDialog(
+                                        context: context,
+                                        builder: (ctx) => NuevoContratoDialog(empleado: emp),
+                                      );
+                                      // 2. Al cerrar el modal, recargamos el cruce. 
+                                      // Si se le dio contrato, el backend lo devolverá y desaparecerá de esta lista.
+                                      _prepararCruceDeDatos();
+                                    },
+                                    icon: const Icon(Icons.add_task, size: 18),
+                                    label: const Text("Iniciar Nuevo Contrato", style: TextStyle(fontWeight: FontWeight.bold)),
                                   ),
                                 ),
                               );
